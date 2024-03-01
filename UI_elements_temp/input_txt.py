@@ -1,0 +1,305 @@
+import time
+
+import pygame
+
+from .scopedMenu import ScopedMenu
+
+class Input_txt(ScopedMenu):
+    def __init__(self, active_color='lightskyblue3', passive_color='chartreuse4', prompt_subject='default_text', add_cursor_box=False):
+        # -------------------
+        # |    child:'txt'  |---> static text in an box with no listener
+        # -------------------
+        # ___________________
+        # |    parent:input | ---> user input,
+        # -------------------      has event handling & main loop,
+        #                          returns text,
+        """ 
+        a class for creating an input box with a prompt above it optionally.
+        when window is destroyed: 
+            * the element will be destroyed and the menus main loop will exit, 
+              unblocking the code which called the input box.
+            * the element will return the text entered by the user as an integer,
+              or if the text is not an integer, exit the program with an error message.
+
+
+        Args:
+            active_color (str, optional): _description_. Defaults to 'lightskyblue3'.
+            passive_color (str, optional): _description_. Defaults to 'chartreuse4'.
+            prompt_subject (str, optional): _description_. Defaults to 'default_text'.
+            text_above (bool, optional): _description_. Defaults to False:
+                when text_above is True:
+                    if text_above is True, the element will display a prompt above the input box.
+                    The prompt is a child element of the input_txt class using the same object as a parent.
+                    Child elements have no event handling or main loop, they are only drawn to the screen.  
+                    destroying the parent element will also destroy the child element.
+                    parent can access child properties, but child cannot access parent properties.
+                    if text_above is False and not a child,element displays input box w/o a prompt.
+
+        Returns:
+            input_txt: a UI element that handles text entered by the user checking valid type. 
+        """
+        # initialize the parent hierarchy
+        super().__init__()
+        # basic properties of the input box
+        self.active_color = pygame.Color(active_color)
+        self.passive_color = pygame.Color(passive_color)
+        self.color = self.passive_color
+        self.active = False
+        self.text = ''
+        # pygame properties of the input box
+        self.rect_text = pygame.Rect(10, 50, 200, 30)
+        self.font = pygame.font.Font(None, 22)
+        self.clock = pygame.time.Clock()
+        # flags that modify the input box default behavior:
+        self.destroy = False
+        self.text_above = add_cursor_box
+        self.prompt_font = pygame.font.Font(None, 22)
+        self.cumulative_f_time = 0
+        # attach the text above the input box as a prompt
+        if add_cursor_box:
+            self.prompt = {'rect': self.rect_text.move(0, -40),
+                           'color': self.passive_color,
+                           'label': prompt_subject}
+        else:
+            self.text = prompt_subject
+            # initialize the prompt in case it is called, but not used, must have a rect will not be drawn
+            self.prompt = {'rect': self.rect_text.move(0, -40),
+                           # make this super visible so it is obvious if rendered
+                           'color': pygame.Color('red'),
+                           'label': '***-ERROR_TXT-***'}
+        self.private_name_space = ['active_color',
+                                   'passive_color',
+                                   'color',
+                                   'active',
+                                   'destroy',
+                                   'text_above']
+
+        
+        self.c_time = time.time()
+        self.f_count = 0
+        self.buttons = []
+    def modify_color(self, element: str, color: tuple) -> None:
+        super().modify_color(element, color)
+        # modify the color of the buttons in self.buttons
+        for button in self.buttons:
+            button['color'] = self.passive_color
+
+    def handle_event(self, event):
+        '''
+        handles input events for the input box.
+        subclasses should append to this method when adding additional behavior.
+        '''
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # check if the input box is clicked
+            self.active_box(event)
+
+        elif event.type == pygame.MOUSEMOTION and pygame.mouse.get_pressed()[0]:
+            self.drag_rect_text(event)
+
+        elif event.type == pygame.KEYDOWN:
+            # if the input box is active, handle key events
+            self.keyboard_input(event)
+
+            # if 'shift+q' is pressed, destroy the menu
+            shift_quit = (
+                event.key == pygame.K_q and pygame.key.get_mods() & pygame.KMOD_SHIFT)
+            if shift_quit or event.type == pygame.QUIT:
+                self.destroy = True
+
+        self.pos_update([(0, -40)], [self.prompt])
+
+    def active_box(self, event):
+        '''
+        checks if the input box is clicked, if so, set active to True.
+        subclasses should append to this method when adding additional behavior.
+        '''
+        if self.rect_text.collidepoint(event.pos) and self.text_above:
+            self.active = True
+            self.color = self.active_color
+        else:
+            self.active = False
+            self.color = self.passive_color
+
+    def keyboard_input(self, event):
+        '''
+        keyboard input for the input box. requires active box and text above modifiers to be True.
+        subclasses should NEVER override or append to this method, especially if that subclass does not read keyboard input as text.
+        '''
+        if self.active and self.text_above:
+            # handle backspace and return key events regardless of active state
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif (event.key == pygame.K_RETURN) and (self.text.strip() != ""):
+                self.destroy = True
+            elif event.key == pygame.K_RETURN:
+                # we don't want to return an empty string
+                pass
+            else:
+                self.text += event.unicode
+
+    def drag_rect_text(self, event):
+        if self.rect_text.collidepoint(event.pos):
+            self.rect_text.x, self.rect_text.y = event.pos
+            self.rect_text.x -= self.rect_text.width / 2
+            self.rect_text.y -= self.rect_text.height / 2
+
+    def pos_update(self, offsets, buttons=[]):
+        """
+        Update the position of the buttons relative to the text box.
+
+        This method updates the position of the buttons based on the position of the text box.
+        It uses the x_y_offsets tuple to calculate the new position for each button.
+
+        Parameters:
+        - offsets: a tuple of tuples containing the x and y offsets for each button
+        - buttons: a list of dictionaries containing the button properties
+
+        Returns:
+        - None
+        """
+        x_y_offsets = offsets
+        # update your position relative to the text box
+        for i in range(len(buttons)):
+            x_off, y_off = x_y_offsets[i]
+            buttons[i]['rect'].x = self.rect_text.x + x_off
+            buttons[i]['rect'].y = self.rect_text.y + y_off
+
+    def blitme(self, screen):
+        '''
+        blit the input box to the screen.
+        subclasses should only append to this method when adding additional behavior.
+        '''
+        display_text = self.text
+        # prompt display if text_above is True
+        if self.text_above:
+            display_text = self.add_cursor(display_text)
+            p = [self.prompt]
+            # add panels for the prompt & render the prompt text
+            self.draw_panels(screen, panels=p)
+            self.draw_all_elements(screen, p)
+        # add panels for the input box & render the input box text
+        parent_panel = {'rect': self.rect_text,
+                        'color': self.color, 'label': display_text}
+        p = [parent_panel]
+        self.draw_panels(screen, panels=p)
+        self.draw_all_elements(screen, p)
+
+    def draw_panels(self, screen, panels=[]):
+        '''
+        draws a panel around each element in the panels list.
+        subclasses should overload & append to this method with super().draw_panels() when adding additional behavior.
+        '''
+        for toDraw in panels:
+            # make a box around all elements
+            pad = abs(toDraw['rect'].x-self.rect_text.bottomright[0])
+            region = pygame.Rect(
+                                toDraw['rect'].x-5,
+                                toDraw['rect'].y-5,
+                                pad+10,
+                                toDraw['rect'].height+10
+                                )
+            # fill the box with grey
+            screen.fill(self.panel_color, region)
+
+    def draw_all_elements(self, screen, panels):
+        for toDraw in panels:
+            self.draw_element(screen, toDraw)
+
+    def draw_element(self, screen, toDraw):
+        '''
+        steps:
+        1) pygame.draw.rect draw a rectangle with the color of the button\n
+        2) render the text to a surface with the font\n
+        3) blit the text surface to the screen at the position of the button. pad to center text\n
+        this method is called by draw_panels() to draw the buttons and text boxes.
+        subclasses should NEVER override or append to this method, 
+        only reuse with super().draw_element() when adding additional behavior to draw_panels().
+        ''' 
+        temp_surface = pygame.Surface((toDraw['rect'].width, toDraw['rect'].height))
+        temp_surface.fill(self.bg_color)
+        self.blit_text(temp_surface, toDraw['label'], (5, 5), self.font, self.font_color)
+        screen.blit(temp_surface, (toDraw['rect'].x, toDraw['rect'].y))
+        pygame.draw.rect(screen, toDraw['color'], toDraw['rect'], 2)
+
+    def add_cursor(self, txt):
+        """ 
+        adds a cursor to the end of the text in the input box.
+            the cursor is a vertical bar that blinks on and off.
+            subclasses should NEVER access this method, it is for internal use only.
+
+        Args:
+            txt (str): the text to add the cursor to.
+
+        Returns:
+            str: the text with the cursor added.
+        """
+        # set a 2 second blink rate for the cursor
+        self.f_count = int(time.time() - self.c_time)
+        
+        if "|" not in self.text and self.f_count > 1:
+            txt += "|"
+            self.c_time = time.time()
+
+        if "|" in self.text and  self.f_count > 4:
+            txt.replace("|", "")
+            self.c_time = time.time()
+            
+
+        return txt
+
+    def exit_value(self) -> int | str | bool | None:
+        try:
+            return int(self.text)
+        except ValueError:
+            print(
+                f'Error recived {self.text}.\n Input must be integer not _{type(self.text)}_')
+            pygame.quit()
+            # exit()
+
+    def main(self, screen, debug=False, debug_target=None):
+        """ 
+            a main loop for the input box.
+            if debug is True, the input box will run in debug mode.
+            debug_target is a list of pygame events that will be passed to the input box's event handler.
+            this allows the user to simulate user input for automated testing.
+            if debug is False, the input box will run in normal mode.
+            normal mode requires user input to run the main loop.
+            the input box will exit when the user clicks the okay button or closes the window.
+        Args:
+            screen (pygame.display): the main window.
+            debug (bool, optional): run in debug mode. Defaults to False.
+            debug_target (list, optional): a list of pygame events. Defaults to None.
+
+        Returns:
+            int: the text entered by the user as an integer.
+        """
+        while not self.destroy:
+            events = pygame.event.get()
+            if debug and debug_target:
+                # add a debug action to the event queue
+                events.append(debug_target.pop(0))
+
+            for event in events:
+                # handle case where user closes main window while input box is active,
+                if event.type == pygame.QUIT:
+                    # without this the program will hang because the input box shares a screen object with main window.
+                    self.destroy = True
+                self.handle_event(event)
+            # fill the screen with black to clear the screen
+            screen.fill(pygame.Color('black'), screen.get_rect())
+            self.blitme(screen)
+            pygame.display.flip()
+            self.clock.tick(30)
+
+        return self.exit_value()
+
+    def main_no_loop(self, screen, events):
+        for event in events:
+            # handle case where user closes main window while input box is active,
+            if event.type == pygame.QUIT:
+                # without this the program will hang because the input box shares a screen object with main window.
+                self.destroy = True
+            self.handle_event(event)
+        self.blitme(screen)
+        if self.destroy:
+            return self.exit_value()
