@@ -1,3 +1,6 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
+
 import os
 
 import pygame
@@ -77,7 +80,8 @@ class ScopedMenu(Colors):
         #     ]
         return '\n'.join(msg)
             
-
+    # blt_text() function from: https://stackoverflow.com/a/42015712
+    # original author unknown
     def blit_text(self, surface, text, pos, font, color=pygame.Color('black')):
         words = [word.split(' ') for word in text.splitlines()]  # 2D array where each row is a list of words.
         space = font.size(' ')[0]  # The width of a space.

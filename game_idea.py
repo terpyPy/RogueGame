@@ -1,5 +1,5 @@
-# PyGame template. from https://gist.github.com/MatthewJA/7544830
-
+# Started from PyGame template. from https://gist.github.com/MatthewJA/7544830
+# 
 # Import standard modules.
 import sys
 import time
@@ -8,13 +8,14 @@ import json
 import pygame
 from pygame.locals import *
 import pygame.font as font
-import UI_elements as UI
+from UI_elements_temp import *
+# import UI_elements as UI
 from GameObjects import Player, Enemy
 from dev_tools import MousePositions as MP
 
 
 
-class DebugMenu(UI.Txt_confirm):
+class DebugMenu(Txt_confirm):
     def __init__(self,subject='-debug menu-', add_cursor=True, buttons=['direction: ','']):
         super().__init__(prompt_subject=subject, add_cursor_box=add_cursor, button_labels=buttons)
         # make debug rects bigger
@@ -180,7 +181,7 @@ def runPyGame(**kwargs):
     # make enemy part of a sprite group, this will be its actual implementation, currently testing
     enemy_group = pygame.sprite.Group()
     enemy_group.add(enemy)
-    start_menu = UI.Txt_confirm(
+    start_menu = Txt_confirm(
         prompt_subject='-enter player name-',
         add_cursor_box=True)
     debug_menu = DebugMenu()

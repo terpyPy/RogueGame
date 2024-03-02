@@ -1,3 +1,6 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
+
 class InvalidColorElement(Exception):
     def __init__(self, element, message='Error: invalid color element'):
         """

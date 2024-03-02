@@ -1,3 +1,6 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
+
 from .input_txt import Input_txt
 
 class Text_box(Input_txt):

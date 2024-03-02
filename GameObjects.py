@@ -1,3 +1,8 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
+# Description: this file contains the GameObjects used in the game such as the player and enemies and their animations
+# this is my original code, but the chat feature of copilot was used to help provide examples on how to achieve certain tasks
+
 import glob
 import json
 import random
@@ -232,6 +237,7 @@ class Player(pygame.sprite.Sprite, WASD):
         self.stable_ground = (0, 0)
         self.show_debug = False
         self.dot = self.get_dot()
+        
     @property
     def colliding(self):
         return self.empty_sprite.colliding

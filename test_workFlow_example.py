@@ -1,3 +1,7 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
+# Description: This file contains the test cases for the workFlow_example.py file in the workFlow package,
+# refactored by copilot for unittest workflow using my original tests script.
 import unittest
 import os
 

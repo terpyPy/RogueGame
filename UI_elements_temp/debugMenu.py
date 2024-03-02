@@ -1,3 +1,6 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
+
 import pygame
 import inspect
 from .txt_confirm import Txt_confirm

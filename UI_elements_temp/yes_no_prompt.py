@@ -1,3 +1,5 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
 import pygame
 
 from .input_txt import Input_txt

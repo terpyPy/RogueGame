@@ -1,4 +1,13 @@
-# PyGame template. from https://gist.github.com/MatthewJA/7544830
+# Author: Cameron Kerley
+# Date: 03/1/2024
+# PyGame template author: MatthewJA @ https://gist.github.com/MatthewJA/7544830
+#
+# This game is primarily an exercise in using PyGame, OOP and building a game from scratch, not from a book or tutorial.
+# the code found here is primarily my own, starting from a very basic PyGame template show the event loop and basic game loop.
+# code used from stackoverflow cannot be properly attributed as the same solutions are found in multiple places all claiming to be OP's own work,
+# or AI generated, without the author explicitly stating otherwise. Unless you are the original author of that code, and capable of producing
+# the license it originally published under, I cannot properly attribute it to you. If you are the original author, please contact me on github.
+# I will be happy to attribute you as the original author of that code and provide a link to your original work.
 
 # Import standard modules.
 import sys

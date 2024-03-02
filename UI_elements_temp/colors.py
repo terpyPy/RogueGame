@@ -1,3 +1,6 @@
+# Author: Cameron Kerley
+# Date: 03/1/2024
+
 import pygame
 from pygame.sprite import Sprite
 
