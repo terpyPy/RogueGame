@@ -18,7 +18,7 @@ def user_typing_sim(txt):
 class TestInputTxt(unittest.TestCase):
     def test_user_input(self):
         screen = pygame.display.set_mode((400, 400))
-        input_box = Input_txt(prompt_subject=f'debug {Input_txt.__name__}', add_cursor_box=True)
+        input_box = Input_txt(prompt_subject=f'debug {Input_txt.__name__}', add_cursor_box=True, exit_types=[int])
 
         # simulate user input on input box
         txt = '1234567890'
@@ -129,6 +129,27 @@ class TestDebugMenu(unittest.TestCase):
         self.assertEqual(r, txt, "Result does not match expected value")
 
         del box
+    
+    def test_debug_menu_fa(self):
+        screen = pygame.display.set_mode((400, 400))
+        box = DebugMenu(subject='Test debug_menu')
+
+        # simulate user input expected by debug_target
+        txt = 'User Name input'
+        gen = user_typing_sim(txt)
+        debug_action = [next(gen) for _ in range(len(txt))]
+        debug_action.append(pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_RETURN}))
+        box.set_all(frame_counts='0', direction_field='None', fps_field='0', xy_field='(0, 0)')
+        # set active to True for automated testing
+        box.active = True
+        r = box.main_file_attached(screen, debug=True, debug_target=debug_action) 
+
+        # Use an assertion to check the result
+        self.assertEqual(r, txt, "Result does not match expected value")
+
+        del box  
+
+    
 
 class TestFileConfirm(unittest.TestCase):
     def test_file_confirm(self):
@@ -151,4 +172,6 @@ class TestFileConfirm(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    # usage example:
+    # python -m unittest test_workFlow_example.TestFileConfirm
     unittest.main()

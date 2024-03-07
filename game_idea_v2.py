@@ -1,14 +1,11 @@
-# Author: Cameron Kerley
-# Date: 03/1/2024
-# PyGame template author: MatthewJA @ https://gist.github.com/MatthewJA/7544830
-#
-# This game is primarily an exercise in using PyGame, OOP and building a game from scratch, not from a book or tutorial.
-# the code found here is primarily my own, starting from a very basic PyGame template show the event loop and basic game loop.
-# code used from stackoverflow cannot be properly attributed as the same solutions are found in multiple places all claiming to be OP's own work,
-# or AI generated, without the author explicitly stating otherwise. Unless you are the original author of that code, and capable of producing
-# the license it originally published under, I cannot properly attribute it to you. If you are the original author, please contact me on github.
-# I will be happy to attribute you as the original author of that code and provide a link to your original work.
-
+# author: Cameron Kerley
+# date: 03/7/2024
+# version: 2.5
+# description: a test bed for systems and mechanics like how enemies will interact with the player 
+# and UI elements like the txt_confirm class. pygame has no menu system and most online examples
+# dont use a class structure which is not ideal for actual game development. I have little experience
+# with game development and UI design and have been really pleased with even this test bed.
+# 
 # Import standard modules.
 import sys
 import time
@@ -64,12 +61,9 @@ class MyGame:
         self.test_collision = json.load(open('mouse_positions_m.json'))
         self.m_record = MP(self.test_collision)
         self.test_collision_group = pygame.sprite.Group()
-        for i in range(len(self.test_collision)):
-            self.test_collision_group.add(pygame.sprite.Sprite())
-            self.test_collision_group.sprites()[i].rect = pygame.Rect(self.test_collision[i],
-                                                                    (1, 1))
-            self.test_collision_group.sprites()[i].image = pygame.Surface((4, 4))
-            self.test_collision_group.sprites()[i].image.fill((255, 0, 0))
+        for dot in self.test_collision:
+            self.test_collision_group.add(self.make_temp_sprite(
+                (255, 0, 0), dot, (4, 4)))
 
         # load the background image: cave_bg.png
         self.bg = pygame.image.load('cave_bg.png')
@@ -166,7 +160,7 @@ class MyGame:
             enemy.colliding = True
 
         p_events = self.player.rect.center
-        self.enemy_group.update(p_events, debug=self.show_debug)
+        self.enemy_group.update([p_events], debug=self.show_debug)
 
     def draw(self):
         """
@@ -189,6 +183,13 @@ class MyGame:
 
         # draw the collision test
         self.test_collision_group.draw(self.screen)
+        
+    def make_temp_sprite(self, color, pos=(0, 0), size=(4, 4)):
+        temp_sprite = pygame.sprite.Sprite()
+        temp_sprite.rect = pygame.Rect(pos, size)
+        temp_sprite.image = pygame.Surface(size)
+        temp_sprite.image.fill(color)
+        return temp_sprite
 
     def record_mouse_positions(self, event):
         # self.m_record, self.test_collision_group
@@ -201,14 +202,8 @@ class MyGame:
             self.m_record.positions.append(pygame.mouse.get_pos())
             # print(mouse_positions)
             # add new collision rects to the collision group
-            self.test_collision_group.add(pygame.sprite.Sprite())
-            self.test_collision_group.sprites(
-            )[-1].rect = pygame.Rect(pygame.mouse.get_pos(), (1, 1))
-            self.test_collision_group.sprites(
-            )[-1].image = pygame.Surface((4, 4))
-            self.test_collision_group.sprites()[-1].image.fill((255, 0, 0))
-
-            time.sleep(0.05)
+            dot = self.make_temp_sprite((255, 0, 0), pygame.mouse.get_pos())
+            self.test_collision_group.add(dot)
         # handle normal mouse clicks
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             print(pygame.mouse.get_pos())

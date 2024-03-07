@@ -14,7 +14,8 @@ class Yes_no_prompt(Input_txt):
         active button is user's choice, passive button is not. confirm with okay button.    
         """
         super().__init__(active_color, passive_color,
-                         prompt_subject, add_cursor_box=add_cursor_box)
+                         prompt_subject, add_cursor_box=add_cursor_box,
+                         exit_types=[bool])
         # reset rect_text at the top of the screen, all other rects are relative to this one
         if not add_cursor_box:
             self.rect_text = self.rect_text.move(0, -40)

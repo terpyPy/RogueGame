@@ -15,7 +15,8 @@ class Txt_confirm(Input_txt):
         active button is user's choice, passive button is not. confirm with okay button.    
         """
         super().__init__(active_color, passive_color,
-                         prompt_subject, add_cursor_box=add_cursor_box)
+                         prompt_subject, add_cursor_box=add_cursor_box,
+                         exit_types=[str])
         # reset rect_text at the top of the screen, all other rects are relative to this one
         if not add_cursor_box:
             self.rect_text = self.rect_text.move(0, -40)
@@ -70,26 +71,14 @@ class Txt_confirm(Input_txt):
             self.cancel['color'] = self.active_color
             self.confirm['color'] = self.passive_color
             self.destroy = True
-            self.text = ''
 
     def blitme(self, screen, exclude=[]):
         # run the inherited blitme method
         super().blitme(screen)
-        if len(self.buttons) > 2:
-            # buttons past the first 2 are user defined so we just need 3 an on from buttons
-            extra_buttons = self.buttons[2:]
-            extra_buttons.insert(0, self.confirm)
-            extra_buttons.insert(1, self.cancel)
-            # remove any buttons that areq in the exclude list
-            if not exclude:
-                exclude = self.exclude
-            
-            extra_buttons = [button for button in extra_buttons if button not in exclude]
-            self.draw_panels(screen, panels=extra_buttons)
-            self.draw_all_elements(screen, extra_buttons)
-        else:
-            self.draw_panels(screen, panels=[self.confirm, self.cancel])
-            self.draw_all_elements(screen, [self.confirm, self.cancel])
+        extra_buttons = [button for button in self.buttons if button not in self.exclude]
+        self.draw_panels(screen, panels=extra_buttons)
+        self.draw_all_elements(screen, extra_buttons)
+        
 
     def exit_value(self) -> str:
         try:

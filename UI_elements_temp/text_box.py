@@ -8,7 +8,7 @@ class Text_box(Input_txt):
         """ 
         a class for creating a text box with no input line. subclasses Input_txt class.
         """
-        super().__init__(active_color, passive_color, prompt_subject, add_cursor_box=False)
+        super().__init__(active_color, passive_color, prompt_subject, add_cursor_box=False,exit_types=[str])
         # reset rect_text at the top of the screen, all other rects are relative to this one
 
         self.rect_text = self.rect_text.move(0, -40)

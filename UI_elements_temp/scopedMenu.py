@@ -8,7 +8,7 @@ import pygame
 from .colors import Colors
 
 class ScopedMenu(Colors):
-    def __init__(self):
+    def __init__(self, exit_types=[int, str, bool]):
         super().__init__()
         self.private_name_space = ['active_color',
                                    'passive_color',
@@ -21,7 +21,7 @@ class ScopedMenu(Colors):
         self.exclude_flag = False
         
         self.access_violation_c = 0
-        
+        self.exit_types = exit_types
     def scope_changes(self, kwargs):
         return [key for key in kwargs.keys() if key in self.private_name_space]
 
@@ -36,11 +36,11 @@ class ScopedMenu(Colors):
 
     def scope_violation_msg(self, key, attempted_change, frame):
         '''
-        -----------------------------------------------------------------------------------------------
-        |==================================:-_Object_"DebugMenu"_-:===================================|
-        | Scope-violation-:game_idea_v2.debug_UI_handler(active=None) in line 74                      |
-        |                                     Violation_Count-:26                                     |
-        -----------------------------------------------------------------------------------------------
+        -----------------------------------------------------------------------------------------------\n
+        |==================================:-_Object_"DebugMenu"_-:===================================|\n
+        | Scope-violation-:game_idea_v2.debug_UI_handler(active=None) in line 74                      |\n
+        |                                     Violation_Count-:26                                     |\n
+        -----------------------------------------------------------------------------------------------\n
         '''
         # inspect the call stack to get needed info for the violation message
         called = frame.f_back.f_code.co_name

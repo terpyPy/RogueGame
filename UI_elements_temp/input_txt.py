@@ -8,7 +8,7 @@ import pygame
 from .scopedMenu import ScopedMenu
 
 class Input_txt(ScopedMenu):
-    def __init__(self, active_color='lightskyblue3', passive_color='chartreuse4', prompt_subject='default_text', add_cursor_box=False):
+    def __init__(self, active_color='lightskyblue3', passive_color='chartreuse4', prompt_subject='default_text', add_cursor_box=False, exit_types=[int, str, bool]):
         # -------------------
         # |    child:'txt'  |---> static text in an box with no listener
         # -------------------
@@ -19,30 +19,23 @@ class Input_txt(ScopedMenu):
         """ 
         a class for creating an input box with a prompt above it optionally.
         when window is destroyed: 
-            * the element will be destroyed and the menus main loop will exit, 
-              unblocking the code which called the input box.
-            * the element will return the text entered by the user as an integer,
-              or if the text is not an integer, exit the program with an error message.
-
-
+            the input box returns the text entered by the user when input box is active.
+            
         Args:
             active_color (str, optional): _description_. Defaults to 'lightskyblue3'.
             passive_color (str, optional): _description_. Defaults to 'chartreuse4'.
             prompt_subject (str, optional): _description_. Defaults to 'default_text'.
             text_above (bool, optional): _description_. Defaults to False:
-                when text_above is True:
-                    if text_above is True, the element will display a prompt above the input box.
-                    The prompt is a child element of the input_txt class using the same object as a parent.
-                    Child elements have no event handling or main loop, they are only drawn to the screen.  
-                    destroying the parent element will also destroy the child element.
-                    parent can access child properties, but child cannot access parent properties.
-                    if text_above is False and not a child,element displays input box w/o a prompt.
+            when text_above is True:
+                If text_above is True, the element will display a prompt above the input box.
+                This allows subclasses an easy means to create a prompt/input box pair.
+                useful for creating confirm/cancel, yes/no, binary choice, or file input menus.
 
         Returns:
             input_txt: a UI element that handles text entered by the user checking valid type. 
         """
         # initialize the parent hierarchy
-        super().__init__()
+        super().__init__(exit_types=exit_types)
         # basic properties of the input box
         self.active_color = pygame.Color(active_color)
         self.passive_color = pygame.Color(passive_color)
@@ -56,6 +49,7 @@ class Input_txt(ScopedMenu):
         # flags that modify the input box default behavior:
         self.destroy = False
         self.text_above = add_cursor_box
+        self.starting_elements = []
         self.prompt_font = pygame.font.Font(None, 22)
         self.cumulative_f_time = 0
         # attach the text above the input box as a prompt
@@ -76,16 +70,31 @@ class Input_txt(ScopedMenu):
                                    'active',
                                    'destroy',
                                    'text_above']
+        self.parent_panel = {'rect': self.rect_text,
+                        'color': self.color, 'label': self.text}
+        self.starting_elements.append(self.parent_panel)
+        self.cursor_f = lambda x: x # default cursor function, returns the text unmodified
+        match self.text_above:
+            case True:
+                self.starting_elements.append(self.prompt)
+                self.cursor_f = self.add_cursor
+            case False:
+                pass
+            case _:
+                raise ValueError('text_above must be a boolean')
 
         
         self.c_time = time.time()
         self.f_count = 0
         self.buttons = []
+        
+        
     def modify_color(self, element: str, color: tuple) -> None:
         super().modify_color(element, color)
         # modify the color of the buttons in self.buttons
-        for button in self.buttons:
-            button['color'] = self.passive_color
+        list(map(lambda x: x.update({'color': self.passive_color}), self.buttons))
+        # for button in self.buttons:
+        #     button['color'] = self.passive_color
 
     def handle_event(self, event):
         '''
@@ -134,17 +143,26 @@ class Input_txt(ScopedMenu):
                 self.text = self.text[:-1]
             elif (event.key == pygame.K_RETURN) and (self.text.strip() != ""):
                 self.destroy = True
-            elif event.key == pygame.K_RETURN:
-                # we don't want to return an empty string
-                pass
+                self.active = False
+                
             else:
                 self.text += event.unicode
 
     def drag_rect_text(self, event):
-        if self.rect_text.collidepoint(event.pos):
-            self.rect_text.x, self.rect_text.y = event.pos
-            self.rect_text.x -= self.rect_text.width / 2
-            self.rect_text.y -= self.rect_text.height / 2
+        drag_group = []
+        drag_group.append(self.prompt['rect'])
+        drag_group.append(self.rect_text)
+        for rect in drag_group:
+            if rect.collidepoint(event.pos):
+                self.rect_text.x, self.rect_text.y = event.pos
+                self.rect_text.x -= self.rect_text.width / 2
+                self.rect_text.y -= self.rect_text.height / 2
+                break
+
+        # if self.rect_text.collidepoint(event.pos):
+        #     self.rect_text.x, self.rect_text.y = event.pos
+        #     self.rect_text.x -= self.rect_text.width / 2
+        #     self.rect_text.y -= self.rect_text.height / 2
 
     def pos_update(self, offsets, buttons=[]):
         """
@@ -162,51 +180,70 @@ class Input_txt(ScopedMenu):
         """
         x_y_offsets = offsets
         # update your position relative to the text box
-        for i in range(len(buttons)):
-            x_off, y_off = x_y_offsets[i]
-            buttons[i]['rect'].x = self.rect_text.x + x_off
-            buttons[i]['rect'].y = self.rect_text.y + y_off
+        r_x, r_y = self.rect_text.x, self.rect_text.y
+        list(map(lambda x,y: self.move_group(x['rect'], y, origin_x=r_x, origin_y=r_y), buttons, x_y_offsets))
+
+    def move_group(self, button, x_y_offsets, origin_x=0, origin_y=0) -> None:
+        x_off, y_off = x_y_offsets
+        button.x = origin_x + x_off
+        button.y = origin_y + y_off
 
     def blitme(self, screen):
         '''
         blit the input box to the screen.
         subclasses should only append to this method when adding additional behavior.
         '''
+        
         display_text = self.text
-        # prompt display if text_above is True
-        if self.text_above:
-            display_text = self.add_cursor(display_text)
-            p = [self.prompt]
-            # add panels for the prompt & render the prompt text
-            self.draw_panels(screen, panels=p)
-            self.draw_all_elements(screen, p)
-        # add panels for the input box & render the input box text
-        parent_panel = {'rect': self.rect_text,
-                        'color': self.color, 'label': display_text}
-        p = [parent_panel]
-        self.draw_panels(screen, panels=p)
-        self.draw_all_elements(screen, p)
+        display_text = self.cursor_f(display_text)
+        self.parent_panel['label'] = display_text
+        self.parent_panel['rect'] = self.rect_text
+        self.parent_panel['color'] = self.color
+        self.draw_panels(screen, panels=self.starting_elements)
+        self.draw_all_elements(screen, self.starting_elements)
 
     def draw_panels(self, screen, panels=[]):
         '''
-        draws a panel around each element in the panels list.
-        subclasses should overload & append to this method with super().draw_panels() when adding additional behavior.
+        draws a panel around each element in the panels list. \n
+        subclasses should overload & append to this method with \n
+        super().draw_panels() when adding additional behavior.\n
         '''
-        for toDraw in panels:
-            # make a box around all elements
-            pad = abs(toDraw['rect'].x-self.rect_text.bottomright[0])
-            region = pygame.Rect(
-                                toDraw['rect'].x-5,
-                                toDraw['rect'].y-5,
-                                pad+10,
-                                toDraw['rect'].height+10
-                                )
+        # reference to the bottom right corner of the input box
+        br = self.rect_text.bottomright[0]
+        bl = self.rect_text.bottomleft[0]
+        list(map(lambda x: self.blit_panel(screen, br, bl, x), panels))
+        
+
+    def blit_panel(self, screen, br, bl, toDraw):
+        region = self.calc_panles(br, bl, toDraw)
             # fill the box with grey
-            screen.fill(self.panel_color, region)
+        screen.fill(self.panel_color, region)
+            
+
+    def calc_panles(self, br, bl,toDraw):
+        pad_r = abs(toDraw['rect'].x-br)
+        pad_l = abs(toDraw['rect'].bottomleft[0]-bl)
+        region = pygame.Rect(
+                            (toDraw['rect'].x-pad_l)-5,
+                            toDraw['rect'].y - 5,
+                            (pad_r+pad_l)+10,
+                            toDraw['rect'].height+10
+                            )
+                            
+        return region
 
     def draw_all_elements(self, screen, panels):
-        for toDraw in panels:
-            self.draw_element(screen, toDraw)
+        """draws all elements in the panels list to the screen. \n
+        subclasses should NEVER override or append to this method, \n
+
+        Args:
+            screen (Surface): any pygame surface object.
+            panels (dict): a list of dictionaries containing the properties of the elements to draw.
+        """
+        
+        list(map(lambda x: self.draw_element(screen, x), panels))
+        # for toDraw in panels:
+        #     self.draw_element(screen, toDraw)
 
     def draw_element(self, screen, toDraw):
         '''
@@ -251,13 +288,21 @@ class Input_txt(ScopedMenu):
         return txt
 
     def exit_value(self) -> int | str | bool | None:
-        try:
-            return int(self.text)
-        except ValueError:
+        """
+        returns the text entered by the user as an expected type.
+        subclasses should append to this method when adding additional behavior.
+        """
+        # run is isinstance loop and add to a list we will match by true
+        
+        for peram in self.exit_types:
+            try:
+                return peram(self.text)
+            except ValueError:
+                self.text = ''
             print(
                 f'Error recived {self.text}.\n Input must be integer not _{type(self.text)}_')
-            pygame.quit()
-            # exit()
+        
+        # exit()
 
     def main(self, screen, debug=False, debug_target=None):
         """ 
@@ -297,6 +342,7 @@ class Input_txt(ScopedMenu):
         return self.exit_value()
 
     def main_no_loop(self, screen, events):
+        self.destroy = False
         for event in events:
             # handle case where user closes main window while input box is active,
             if event.type == pygame.QUIT:
@@ -305,4 +351,5 @@ class Input_txt(ScopedMenu):
             self.handle_event(event)
         self.blitme(screen)
         if self.destroy:
+            print('destroyed')
             return self.exit_value()
