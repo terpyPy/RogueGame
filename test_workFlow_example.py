@@ -129,26 +129,28 @@ class TestDebugMenu(unittest.TestCase):
         self.assertEqual(r, txt, "Result does not match expected value")
 
         del box
-    
-    def test_debug_menu_fa(self):
-        screen = pygame.display.set_mode((400, 400))
-        box = DebugMenu(subject='Test debug_menu')
+    # ----------------------------------------------------------------------------
+    # CHANGED FOR LAPTOP python == 3.9.16.
+    # test_debug_menu_fa is not implemented for laptop branch
+    # def test_debug_menu_fa(self):
+    #     screen = pygame.display.set_mode((400, 400))
+    #     box = DebugMenu(subject='Test debug_menu')
 
-        # simulate user input expected by debug_target
-        txt = 'User Name input'
-        gen = user_typing_sim(txt)
-        debug_action = [next(gen) for _ in range(len(txt))]
-        debug_action.append(pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_RETURN}))
-        box.set_all(frame_counts='0', direction_field='None', fps_field='0', xy_field='(0, 0)')
-        # set active to True for automated testing
-        box.active = True
-        r = box.main_file_attached(screen, debug=True, debug_target=debug_action) 
+    #     # simulate user input expected by debug_target
+    #     txt = 'User Name input'
+    #     gen = user_typing_sim(txt)
+    #     debug_action = [next(gen) for _ in range(len(txt))]
+    #     debug_action.append(pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_RETURN}))
+    #     box.set_all(frame_counts='0', direction_field='None', fps_field='0', xy_field='(0, 0)')
+    #     # set active to True for automated testing
+    #     box.active = True
+    #     r = box.main_file_attached(screen, debug=True, debug_target=debug_action) 
 
-        # Use an assertion to check the result
-        self.assertEqual(r, txt, "Result does not match expected value")
+    #     # Use an assertion to check the result
+    #     self.assertEqual(r, txt, "Result does not match expected value")
 
-        del box  
-
+    #     del box  
+    # ----------------------------------------------------------------------------
     
 
 class TestFileConfirm(unittest.TestCase):
