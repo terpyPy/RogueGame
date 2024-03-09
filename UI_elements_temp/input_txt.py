@@ -74,15 +74,13 @@ class Input_txt(ScopedMenu):
                         'color': self.color, 'label': self.text}
         self.starting_elements.append(self.parent_panel)
         self.cursor_f = lambda x: x # default cursor function, returns the text unmodified
-        match self.text_above:
-            case True:
+# ----------------------------------------------------------------------------
+        # CHANGED FOR LAPTOP python == 3.9.16        
+        if self.text_above:
                 self.starting_elements.append(self.prompt)
                 self.cursor_f = self.add_cursor
-            case False:
-                pass
-            case _:
-                raise ValueError('text_above must be a boolean')
-
+        
+# ----------------------------------------------------------------------------
         
         self.c_time = time.time()
         self.f_count = 0
@@ -287,7 +285,7 @@ class Input_txt(ScopedMenu):
 
         return txt
 
-    def exit_value(self) -> int | str | bool | None:
+    def exit_value(self):
         """
         returns the text entered by the user as an expected type.
         subclasses should append to this method when adding additional behavior.

@@ -44,14 +44,16 @@ class DebugMenu(Txt_confirm):
         self.err_surf = pygame.Surface((m_rect.width, m_rect.height))
         self.e_font = pygame.font.Font(None, 20)
         
-        json_list = glob.glob('**/*.json', recursive=True, root_dir='\RogueGame')
-        f_name = list(filter(lambda x: "debug_info" in x, json_list))[0]
-        self.f_path = os.path.join(os.curdir, f_name)
+# ----------------------------------------------------------------------------
+    # CHANGED FOR LAPTOP python == 3.9.16        
+        # json_list = glob.glob('**/*.json', recursive=True)
+        # f_name = list(filter(lambda x: "debug_info" in x, json_list))[0]
+        # self.f_path = os.path.join(os.curdir, f_name)
         
-        f = open(self.f_path, 'r')
-        self.info = json.load(f)    
-        f.close()
-        self.d_hash = self.info['hash']
+        # f = open(self.f_path, 'r')
+        # self.info = json.load(f)    
+        # f.close()
+        # self.d_hash = self.info['hash']
         
     @property
     def xy_field(self) -> str:
@@ -127,42 +129,45 @@ class DebugMenu(Txt_confirm):
                 self.exclude = []
         super().handle_event(event)
 
-    def main_file_attached(self, screen, debug=False, debug_target=None):
-        """ 
-        The main loop of the debug menu, it handles events and updates the screen.
-        It is directly tied to debug_info.json. 
-        will update the debug menu with the information in the file
-        """
-        while not self.destroy:
-            events = pygame.event.get()
-            try:
-                f = open(self.f_path, 'r')
-                self.info = json.load(f)    
-                f.close()
-                if self.info['hash'] != self.d_hash:
-                    self.set_all(**self.info)
-                    self.d_hash = self.info['hash']
+# ----------------------------------------------------------------------------
+        # CHANGED FOR LAPTOP python == 3.9.16
+
+    # def main_file_attached(self, screen, debug=False, debug_target=None):
+    #     """ 
+    #     The main loop of the debug menu, it handles events and updates the screen.
+    #     It is directly tied to debug_info.json. 
+    #     will update the debug menu with the information in the file
+    #     """
+    #     while not self.destroy:
+    #         events = pygame.event.get()
+    #         try:
+    #             f = open(self.f_path, 'r')
+    #             self.info = json.load(f)    
+    #             f.close()
+    #             if self.info['hash'] != self.d_hash:
+    #                 self.set_all(**self.info)
+    #                 self.d_hash = self.info['hash']
                     
-            except:
-                self.error_field = 'no file found'
+    #         except:
+    #             self.error_field = 'no file found'
             
             
-            if debug and debug_target:
-                # add a debug action to the event queue
-                events.append(debug_target.pop(0))
+    #         if debug and debug_target:
+    #             # add a debug action to the event queue
+    #             events.append(debug_target.pop(0))
 
 
-            for event in events:
-                # handle case where user closes main window while input box is active,
-                if event.type == pygame.QUIT:
-                    # without this the program will hang because the input box shares a screen object with main window.
-                    self.destroy = True
-                self.handle_event(event)
-            # fill the screen with black to clear the screen
-            screen.fill(pygame.Color('black'), screen.get_rect())
-            self.blitme(screen)
-            pygame.display.flip()
-            self.clock.tick(60)
+    #         for event in events:
+    #             # handle case where user closes main window while input box is active,
+    #             if event.type == pygame.QUIT:
+    #                 # without this the program will hang because the input box shares a screen object with main window.
+    #                 self.destroy = True
+    #             self.handle_event(event)
+    #         # fill the screen with black to clear the screen
+    #         screen.fill(pygame.Color('black'), screen.get_rect())
+    #         self.blitme(screen)
+    #         pygame.display.flip()
+    #         self.clock.tick(60)
 
-        return self.exit_value()
+    #     return self.exit_value()
     

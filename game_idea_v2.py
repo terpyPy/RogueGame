@@ -33,17 +33,19 @@ class MyGame:
         # setup a default font for pygame
         self.myFont = font.SysFont('Comic Sans MS', 12)
         # Set up the window.
-        self.width, self.height = 1920, 1080
+        self.width, self.height = pygame.display.Info().current_w, pygame.display.Info().current_h
         self.screen = pygame.display.set_mode((self.width, self.height))
 
         # make the player
         self.player = Player(self.screen)
         # setup test enemies for the player to interact with
         # create a list of starting positions with hight and width as max bounds
-        cords = list(zip(range(100, 1920, 100), range(100, 1080, 100)))
+        # ----------------------------------------------------------------------------
+        # CHANGED FOR LAPTOP python == 3.9.16
+        cords = list(zip(range(100, self.width, 100), range(100, self.height, 100)))
 
         enemies = [Enemy(self.screen, cords[i]) for i in range(len(cords))]
-
+        # ----------------------------------------------------------------------------
         # make enemy part of a sprite group, this will be its actual implementation, currently testing
         self.enemy_group = pygame.sprite.Group()
         self.enemy_group.add(enemies)
