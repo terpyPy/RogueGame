@@ -414,6 +414,26 @@ class Patrol:
         self.times -= 1
         return self.route[self.index]
 
+# create a cord generator that produces a valid point the enemy can move to for n frames
+class EnemyPath:
+    def __init__(self, n_frames: int, screen_size: tuple, frame_count: int = 0):
+        self.n_frames = n_frames
+        self.screen_size = screen_size
+        self.x = random.randint(0, self.screen_size[0])
+        self.y = random.randint(0, self.screen_size[1])
+        self.frame_count = frame_count
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        if self.frame_count >= self.n_frames:
+            self.x = random.randint(0, self.screen_size[0])
+            self.y = random.randint(0, self.screen_size[1])
+            self.frame_count = 0
+        return (self.x, self.y)
+        
+
 # enemy base class
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, screen, cords: tuple = (0, 0)):
@@ -455,7 +475,7 @@ class Enemy(pygame.sprite.Sprite):
         d_choices = ['r', 'u', 'd', 'l']
         random.shuffle(d_choices)
         self.UID = hash(time.time())
-        self.e_pathing = Patrol(random.randint(10, 20), d_choices)
+        self.e_pathing = EnemyPath(self.rand_mod+self.frame_seed, self.screen_rect.size)
         self.stable_ground = (0, 0)
         self.line = pygame.sprite.Sprite()
         self.line.image = pygame.Surface((self.agro_range*2, self.agro_range*2), pygame.SRCALPHA)
@@ -464,7 +484,7 @@ class Enemy(pygame.sprite.Sprite):
         self.flush_match = dict(zip((False, True), (lambda: None, self.flush_agro)))
         self.line_match = dict(zip((False, True), (lambda *x: None, self.add_line)))
         self.collider_pos = (0, 0)
-        self.hp = 100
+        self.path_line = (0, 0, 0, 0, self.screen)
     # alias for self.empty_sprite.colliding
     @property
     def colliding(self):
@@ -502,21 +522,26 @@ class Enemy(pygame.sprite.Sprite):
                 has_target = self.check_agro(enemy)
                     
             if my_roaming_window and not has_target: 
-                # move the enemy with the pathing sequence
-                direction = next(self.e_pathing)
-                if direction == "r":
-                    self.x += self.speed
-                elif direction == "l":
-                    self.x -= self.speed
-                elif direction == "u":
-                    self.y -= self.speed
-                elif direction == "d":
-                    self.y += self.speed
-                        
-                        
+                # move the enemy towards the next position in the pathing sequence
+                head_towards = next(self.e_pathing)
+                # scene_x, scene_y = self.screen_rect.size
+                e_x, e_y = self.rect.center
+                # scaled_pos = self.calc_line(*head_towards, 0, 0, e_x, e_y)
+                # self.line_match[self.show_debug](*scaled_pos)
+                dist = math.sqrt((e_x - head_towards[0])**2 + (e_y - head_towards[1])**2)
+                if dist > 1:
+                    s1, s2 = self.get_scaled_speed(dist, e_x, e_y, *head_towards)
+                    self.x += s1
+                    self.y += s2
+                    # draw a dot at the target position
+                    self.path_line = (*head_towards, e_x, e_y, self.screen)
+                self.e_pathing.frame_count += 1
+        
         else:
             self.x, self.y = self.stable_ground
+            self.e_pathing.frame_count += 1000000
         self.frame_count += 1
+        
 
     def check_agro(self, enemy):
         
@@ -527,26 +552,29 @@ class Enemy(pygame.sprite.Sprite):
             s_x, s_y = self.agro_circle.rect.x, self.agro_circle.rect.y
             e_x, e_y = self.rect.center
             scaled_pos = self.calc_line(p_x, p_y, s_x, s_y, e_x, e_y) 
-            self.line_match[self.show_debug](*scaled_pos)
+            self.line_match[self.show_debug](*scaled_pos, self.agro_circle.image)
             # we want this bound within the screen
             # scaled_pos contains our coordinates and targets relative to the agro circle
             # we just want to move the enemy towards the player relative coordinates as its the end point
-            if scaled_pos:
-                e_x, e_y, t_x, t_y = scaled_pos
-                # move the enemy towards the player relative coordinates and speed
-                f_of_x = lambda x1, x2: (x1 - x2) / dist * self.speed
-                s1 = f_of_x(t_x, e_x)
-                s2 = f_of_x(t_y, e_y)
-                print(s1, s2)
-                self.x += s1
-                self.y += s2
+            e_x, e_y, t_x, t_y = scaled_pos
+            # move the enemy towards the player relative coordinates and speed
+            s1, s2 = self.get_scaled_speed(dist, e_x, e_y, t_x, t_y)
+            # print(s1, s2)
+            self.x += s1
+            self.y += s2
                 
             return True
 
-    def add_line(self, e_x_mod, e_y_mod, t_x_mod, t_y_mod, surf_name='agro_circle'):
+    def get_scaled_speed(self, dist, e_x, e_y, t_x, t_y):
+        f_of_x = lambda x1, x2: (x1 - x2) / dist * self.speed
+        f_of_xy = lambda x, y: (f_of_x(*x), f_of_x(*y))
+        s1, s2 = f_of_xy((t_x, e_x), (t_y, e_y))
+        return s1,s2
+
+    def add_line(self, e_x_mod, e_y_mod, t_x_mod, t_y_mod, surf_name=''):
         # convert our position to the agro circle's coordinate system
-        target_surf = getattr(self, surf_name)       
-        pygame.draw.line(target_surf.image, (0, 255, 0), (e_x_mod, e_y_mod), (t_x_mod, t_y_mod), 2)
+        target_surf = surf_name
+        pygame.draw.line(target_surf, (0, 255, 0), (e_x_mod, e_y_mod), (t_x_mod, t_y_mod), 2)
 
     def calc_line(self, t_x, t_y, surf_x, surf_y, e_x, e_y):
         """scale the position to the surface's coordinate system\n

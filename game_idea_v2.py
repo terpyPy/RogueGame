@@ -146,6 +146,7 @@ class MyGame:
         self.debug_group.add([n.agro_circle for n in self.enemy_group.sprites()])
         self.debug_group.add(self.player.empty_sprite)
         self.debug_group.add(self.player.dot)
+        
 
     def group_updates(self):
         player_scene_collision = pygame.sprite.spritecollideany(
@@ -180,7 +181,7 @@ class MyGame:
         self.screen.blit(txt, txt_loc)
         # draw the enemy
         self.enemy_group.draw(self.screen)
-
+        # [n.add_line(*n.path_line) for n in self.enemy_group.sprites()]
         # draw the collision test
         self.test_collision_group.draw(self.screen)
         
