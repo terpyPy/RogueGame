@@ -18,7 +18,7 @@ def user_typing_sim(txt):
 class TestInputTxt(unittest.TestCase):
     def test_user_input(self):
         screen = pygame.display.set_mode((400, 400))
-        input_box = Input_txt(prompt_subject=f'debug {Input_txt.__name__}', add_cursor_box=True, exit_types=[int])
+        box = Input_txt(prompt_subject=f'debug {Input_txt.__name__}', add_cursor_box=True, exit_types=[int])
 
         # simulate user input on input box
         txt = '1234567890'
@@ -27,14 +27,14 @@ class TestInputTxt(unittest.TestCase):
         debug_action.append(pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_RETURN}))
 
         # set active to True for automated testing
-        input_box.active = True
-        r = input_box.main(screen, debug=True, debug_target=debug_action)
+        box.active = True
+        r = box.main(screen, debug=True, debug_target=debug_action)
 
         # Use an assertion to check the result
         self.assertIsInstance(r, int, "Result is not an integer")
         self.assertEqual(r, int(txt), "Result does not match expected value")
 
-        del input_box
+        del box
 
 class TestYesNoPrompt(unittest.TestCase):
     def test_yes_no_choice(self):

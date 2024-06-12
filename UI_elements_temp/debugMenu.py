@@ -87,6 +87,14 @@ class DebugMenu(Txt_confirm):
 
     @property
     def error_field(self) -> dict:
+        
+        # format of error message:
+        #    found obj hash: {self.d_hash}\n{error_msg}
+        #         ^                       ^      ^
+        #         |--> set in game loop   |      | 
+        #              new fields sep <---|      |
+        #              final text added <--------|
+        #
         return self.buttons[self.len_b_norm+1]
     
     @error_field.setter
@@ -107,25 +115,33 @@ class DebugMenu(Txt_confirm):
         """
         # find any properties in the kwargs that are private name space
         violations = self.scope_changes(kwargs)
-
-        if violations == []:
-            self.error_field = 'no errors'
-        else:
+        error_msg = ''
+        if violations:
             # remove any private name space properties from the kwargs dict without checking if its none
             self.remove_inval_scope(kwargs, violations, inspect.currentframe())
+            error_msg = 'error in scope changes'
         
         # set all the properties of the debug menu
         for key, value in kwargs.items():
             setattr(self, key, value)
-
-    def handle_event(self, event):
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_e:
+        curr_txt = getattr(self, 'error_field')['label']
+        curr_txt = f'{curr_txt}\n{error_msg}'
+        lines_in_buff = curr_txt.split('\n')
+        if len(lines_in_buff) > 5:
+            lines_in_buff = lines_in_buff[-5:]
+            curr_txt = '\n'.join(lines_in_buff) 
+        setattr(self, 'error_field', curr_txt)
+        
+    def handle_hotkeys(self, event):
+        return super().handle_hotkeys(event, event_handlers=[self.toggle_debug_text.__name__])    
+        
+    def toggle_debug_text(self, event):
+        if event.key == pygame.K_RALT:
             self.exclude_flag = not self.exclude_flag
             if self.exclude_flag:
                 self.exclude.append(self.error_field)
             else:
                 self.exclude = []
-        super().handle_event(event)
 
     def main_file_attached(self, screen, debug=False, debug_target=None):
         """ 

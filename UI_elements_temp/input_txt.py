@@ -96,6 +96,36 @@ class Input_txt(ScopedMenu):
         # for button in self.buttons:
         #     button['color'] = self.passive_color
 
+    def handle_hotkeys(self, event, event_handlers=[]):
+        """
+        Handles hotkey events. should be called after checking if key is pressed.\n
+        Generalized to except hotkey definitions from subclasses.\n
+        simply add the method name to event_handlers list.\n
+        if a menu does not have the specified hotkey attribute, an error message is displayed.\n
+
+        Args:
+            event (pygame.event.Event): The event object representing the hotkey event.
+            event_handlers (list, optional): A list of method names that represent hotkey events. Defaults to [].
+        """
+        self.keyboard_input(event)
+        # add hotkey quit to the event handlers, this behavior is intrinsic to all menus.
+        event_handlers.extend([self.handle_quit_event.__name__])
+        # handle hotkeys for menu, 
+        # 
+        for handler in event_handlers:
+            if hasattr(self, handler):
+                getattr(self, handler)(event)
+            else:
+                print(f'handler {handler} not found in {self.__class__.__name__}')
+        
+
+    def handle_quit_event(self, event):
+        shift_quit = (
+            event.key == pygame.K_q and pygame.key.get_mods() & pygame.KMOD_SHIFT)
+        
+        if shift_quit or event.type == pygame.QUIT:
+            self.destroy = True
+
     def handle_event(self, event):
         '''
         handles input events for the input box.
@@ -107,16 +137,10 @@ class Input_txt(ScopedMenu):
 
         elif event.type == pygame.MOUSEMOTION and pygame.mouse.get_pressed()[0]:
             self.drag_rect_text(event)
-
+            
         elif event.type == pygame.KEYDOWN:
-            # if the input box is active, handle key events
-            self.keyboard_input(event)
-
-            # if 'shift+q' is pressed, destroy the menu
-            shift_quit = (
-                event.key == pygame.K_q and pygame.key.get_mods() & pygame.KMOD_SHIFT)
-            if shift_quit or event.type == pygame.QUIT:
-                self.destroy = True
+            # handle hotkeys for menu,
+            self.handle_hotkeys(event)
 
         self.pos_update([(0, -40)], [self.prompt])
 
@@ -158,11 +182,6 @@ class Input_txt(ScopedMenu):
                 self.rect_text.x -= self.rect_text.width / 2
                 self.rect_text.y -= self.rect_text.height / 2
                 break
-
-        # if self.rect_text.collidepoint(event.pos):
-        #     self.rect_text.x, self.rect_text.y = event.pos
-        #     self.rect_text.x -= self.rect_text.width / 2
-        #     self.rect_text.y -= self.rect_text.height / 2
 
     def pos_update(self, offsets, buttons=[]):
         """
@@ -333,6 +352,64 @@ class Input_txt(ScopedMenu):
                     # without this the program will hang because the input box shares a screen object with main window.
                     self.destroy = True
                 self.handle_event(event)
+            # fill the screen with black to clear the screen
+            screen.fill(pygame.Color('black'), screen.get_rect())
+            self.blitme(screen)
+            pygame.display.flip()
+            self.clock.tick(30)
+
+        return self.exit_value()
+    
+    def main_testing(self, screen):
+        """ 
+            a main loop for the input box.
+            if debug is True, the input box will run in debug mode.
+            debug_target is a list of pygame events that will be passed to the input box's event handler.
+            this allows the user to simulate user input for automated testing.
+            if debug is False, the input box will run in normal mode.
+            normal mode requires user input to run the main loop.
+            the input box will exit when the user clicks the okay button or closes the window.
+        Args:
+            screen (pygame.display): the main window.
+            debug (bool, optional): run in debug mode. Defaults to False.
+            debug_target (list, optional): a list of pygame events. Defaults to None.
+
+        Returns:
+            int: the text entered by the user as an integer.
+        """
+        line_correct = False
+        end = False
+        # read file of text to type
+        with open('samps.txt', 'r') as f:
+            text = f.read()
+        # turn text into list of lines
+        text = text.split('\n')
+        while not end:
+            events = pygame.event.get()
+            for event in events:
+                # handle case where user closes main window while input box is active,
+                if event.type == pygame.QUIT:
+                    # without this the program will hang because the input box shares a screen object with main window.
+                    end = True
+                self.handle_event(event)
+                # we will use destroy flag to determine when to check user input 
+                if self.destroy:
+                    excepted, user_in = self.text.split('\n')
+                    line_correct =  excepted == user_in
+                    self.prompt['label'] = f'correct: {line_correct}'
+                    self.destroy =  False
+                    self.active = True
+                if line_correct:
+                    # clear the text buffer
+                    self.text = ''
+                    self.prompt['label'] = 'type this text'
+                    line_correct = False
+                    # set new text to type
+                    self.text = text.pop(0) + '\n'
+                    
+                if not text:
+                    end = True
+                    
             # fill the screen with black to clear the screen
             screen.fill(pygame.Color('black'), screen.get_rect())
             self.blitme(screen)

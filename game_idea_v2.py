@@ -40,7 +40,7 @@ class MyGame:
         self.player = Player(self.screen)
         # setup test enemies for the player to interact with
         # create a list of starting positions with hight and width as max bounds
-        cords = list(zip(range(100, 1920, 100), range(100, 1080, 100)))
+        cords = list(zip(range(100, 1920, 600), range(100, 1080, 600)))
 
         enemies = [Enemy(self.screen, cords[i]) for i in range(len(cords))]
 
@@ -78,15 +78,20 @@ class MyGame:
         self.debug_m_targets = {
             True: self.debug_UI_handler, False: self.empty_event}
         self.debug_menu.exclude = []
+        self.found_obj_info = '----'
+        self.ids = map(lambda x: hash(x), self.enemy_group.sprites())
+        self.e_lookup = dict(zip(list(self.ids), self.enemy_group.sprites()))
 
     def debug_UI_handler(self, screen, events):
 
         self.debug_menu.set_all(frame_counts=f'{self.player}',
                                 direction_field=str(self.player.active_keys),
                                 fps_field=f'fps: {int(self.fpsClock.get_fps())}',
-                                xy_field=repr(self.player)
+                                xy_field=repr(self.player),
+                                error_field=f'obj info: {self.found_obj_info}'
                                )
         self.debug_menu.main_no_loop(screen, events)
+        
 
     def empty_event(self, *args):
         pass
@@ -107,12 +112,28 @@ class MyGame:
             esc_con = (event.type == KEYDOWN and event.key == K_ESCAPE)
             # If the window is closed, quit the game.
             x_out_con = (event.type == QUIT)
+            click_in_debug_con = (event.type == MOUSEBUTTONDOWN and self.show_debug)
             if x_out_con or esc_con:
                 pygame.quit()  # Opposite of pygame.init
                 sys.exit()
+            
+            elif click_in_debug_con:
+                # get the mouse position
+                mouse_pos = pygame.mouse.get_pos()
+                # make mouse position a sprite
+                mouse_sprite = self.make_temp_sprite((255, 0, 0), mouse_pos)
+                # check if the mouse is in enemy sprite, not the hit box
+                obj_found = pygame.sprite.spritecollideany(mouse_sprite, self.enemy_group)
+                # take the first enemy found always
+                if obj_found:
+                    print(f"(ID, '{hash(obj_found)}')")
+                    self.found_obj_info += f"\n(ID, '{hash(obj_found)}'), (type, '{type(obj_found).__name__}')\nlocated at x,y{obj_found.rect.center}"
+                
+            
             # record mouse positions
-            if not self.show_debug and self.record_collision:
+            elif not self.show_debug and self.record_collision:
                 self.record_mouse_positions(event)
+            
 
             # response to keypress and held keys (movement) such that movement is smooth
             if event.type == pygame.KEYDOWN:
@@ -123,16 +144,19 @@ class MyGame:
                     with open('mouse_positions.json', 'w') as f:
                         json.dump(self.m_record.positions, f)
 
-                elif event.key == pygame.K_1:
+                elif event.key == pygame.K_m:
                     self.show_debug = not self.show_debug
                     if self.show_debug:
                         self.add_debug_groups()
                     else:
                         self.debug_group.empty()
 
-                elif event.key == pygame.K_2:
+                elif event.key == pygame.K_r:
                     self.record_collision = not self.record_collision
                     print(f'record collision enabled: {self.record_collision}')
+                    
+                elif event.key == pygame.K_RETURN:
+                    self.parse_debug_command(self.debug_menu.text)
 
             elif event.type == pygame.KEYUP:
                 self.player.k_up_e(event.key, False)
@@ -140,6 +164,35 @@ class MyGame:
 
         self.group_updates()
         return events
+
+    def parse_debug_command(self, command):
+        parts = command.split()
+
+        if len(parts) == 0:
+            return
+
+        if parts[0] == "e_spawn":
+            new_e = Enemy(self.screen, pygame.mouse.get_pos())
+            self.enemy_group.add(new_e)
+            self.hit_box_group.add(new_e.empty_sprite)
+            self.e_lookup[hash(new_e)] = new_e
+            
+        elif parts[0] == "e_del":
+            if len(parts) < 2:
+                print("Error: 'e_del' command requires an enemy hash.")
+                return
+            hash_str = parts[1]
+            target_e = self.e_lookup.get(int(hash_str))
+            if target_e is None: print(f"Error: No enemy with hash '{hash_str}' found.")
+            else:
+                self.enemy_group.remove(target_e)
+                self.hit_box_group.remove(target_e.empty_sprite)
+                self.e_lookup.pop(int(hash_str))
+                
+        elif parts[0] == "p_nc":
+            self.player.no_clip = not self.player.no_clip
+            self.player.colliding = False
+            self.found_obj_info += f'\nno clip: {self.player.no_clip}'
 
     def add_debug_groups(self):
         self.debug_group.add(self.hit_box_group.sprites())
@@ -181,7 +234,9 @@ class MyGame:
         self.screen.blit(txt, txt_loc)
         # draw the enemy
         self.enemy_group.draw(self.screen)
-        # [n.add_line(*n.path_line) for n in self.enemy_group.sprites()]
+        # NOTE: shows the line of enemy paths
+        # if self.show_debug:
+        #     [n.add_line(*n.path_line) for n in self.enemy_group.sprites()]
         # draw the collision test
         self.test_collision_group.draw(self.screen)
         
@@ -194,21 +249,18 @@ class MyGame:
 
     def record_mouse_positions(self, event):
         # self.m_record, self.test_collision_group
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            self.m_record.is_dragging = True
-        elif event.type == pygame.MOUSEBUTTONUP:
-            self.m_record.is_dragging = False
-
-        if event.type == pygame.MOUSEMOTION and self.m_record.is_dragging:
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                self.m_record.is_dragging = True
+                print(pygame.mouse.get_pos())
+        elif self.m_record.is_dragging:
             self.m_record.positions.append(pygame.mouse.get_pos())
             # print(mouse_positions)
             # add new collision rects to the collision group
             dot = self.make_temp_sprite((255, 0, 0), pygame.mouse.get_pos())
             self.test_collision_group.add(dot)
-        # handle normal mouse clicks
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            print(pygame.mouse.get_pos())
-            # time.sleep(0.05)
+        if event.type == pygame.MOUSEBUTTONUP:
+            self.m_record.is_dragging = False
 
     def main(self):
         while True:
