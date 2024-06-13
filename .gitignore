@@ -1,4 +1,6 @@
 
+
 *.pyc
-*.pyc
-*.pyc
+debug_info.json
+demo_linked_list.ipynb
+.gitattributes
