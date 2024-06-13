@@ -40,7 +40,7 @@ class MyGame:
         self.player = Player(self.screen)
         # setup test enemies for the player to interact with
         # create a list of starting positions with hight and width as max bounds
-        cords = list(zip(range(100, 1920, 600), range(100, 1080, 600)))
+        cords = list(zip(range(100, 1920, 700), range(100, 1080, 700)))
 
         enemies = [Enemy(self.screen, cords[i]) for i in range(len(cords))]
 
@@ -117,7 +117,7 @@ class MyGame:
                 pygame.quit()  # Opposite of pygame.init
                 sys.exit()
             
-            elif click_in_debug_con:
+            if click_in_debug_con:
                 # get the mouse position
                 mouse_pos = pygame.mouse.get_pos()
                 # make mouse position a sprite
@@ -131,13 +131,12 @@ class MyGame:
                 
             
             # record mouse positions
-            elif not self.show_debug and self.record_collision:
+            if not self.show_debug and self.record_collision:
                 self.record_mouse_positions(event)
             
-
             # response to keypress and held keys (movement) such that movement is smooth
             if event.type == pygame.KEYDOWN:
-                self.player.k_up_e(event.key, True)
+                
 
                 if event.key == pygame.K_o:
                     print('saving mouse positions: mouse_positions_m.json')
@@ -157,12 +156,13 @@ class MyGame:
                     
                 elif event.key == pygame.K_RETURN:
                     self.parse_debug_command(self.debug_menu.text)
+                
+                else:
+                    self.player.k_up_e(event.key, True)
 
             elif event.type == pygame.KEYUP:
                 self.player.k_up_e(event.key, False)
-            # record mouse positions
-
-        self.group_updates()
+           
         return events
 
     def parse_debug_command(self, command):
@@ -195,8 +195,8 @@ class MyGame:
             self.found_obj_info += f'\nno clip: {self.player.no_clip}'
 
     def add_debug_groups(self):
-        self.debug_group.add(self.hit_box_group.sprites())
-        self.debug_group.add([n.agro_circle for n in self.enemy_group.sprites()])
+        # self.debug_group.add(self.hit_box_group.sprites())
+        # self.debug_group.add([n.agro_circle for n in self.enemy_group.sprites()])
         self.debug_group.add(self.player.empty_sprite)
         self.debug_group.add(self.player.dot)
         
@@ -210,9 +210,9 @@ class MyGame:
         # update the enemy
         enemy_scene_collision = pygame.sprite.groupcollide(
             self.hit_box_group, self.test_collision_group, False, False)
-        for enemy in enemy_scene_collision:
-            enemy.colliding = True
-
+        # set the colliding attribute of the enemy to the collision result
+        [enemy.isColliding(True) for enemy in enemy_scene_collision]
+        # observe the player for enemy AI
         p_events = self.player.rect.center
         self.enemy_group.update([p_events], debug=self.show_debug)
 
@@ -249,28 +249,31 @@ class MyGame:
 
     def record_mouse_positions(self, event):
         # self.m_record, self.test_collision_group
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                self.m_record.is_dragging = True
-                print(pygame.mouse.get_pos())
-        elif self.m_record.is_dragging:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.m_record.is_dragging = True
+            print(pygame.mouse.get_pos())
+                
+        elif event.type == pygame.MOUSEBUTTONUP:
+            self.m_record.is_dragging = False
+            
+        if self.m_record.is_dragging:
             self.m_record.positions.append(pygame.mouse.get_pos())
             # print(mouse_positions)
             # add new collision rects to the collision group
             dot = self.make_temp_sprite((255, 0, 0), pygame.mouse.get_pos())
             self.test_collision_group.add(dot)
-        if event.type == pygame.MOUSEBUTTONUP:
-            self.m_record.is_dragging = False
+            
 
     def main(self):
+        self.screen.blit(self.bg, (0, 0))
         while True:
             events = self.update(self.dt)
+            self.group_updates()
             self.draw()
             self.fpsClock.tick(self.fps)
-            self.dt = self.fpsClock.get_time()/1000
             self.debug_m_targets[self.show_debug](self.screen, events)
-            pygame.display.update()
-
+            pygame.display.update(self.screen.get_rect())
+            self.dt = self.fpsClock.get_time()/1000
 
 if __name__ == '__main__':
     # test the game

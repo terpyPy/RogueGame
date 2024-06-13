@@ -22,10 +22,21 @@ class Keyframe:
             flip (bool, optional): flip the image horizontally. Defaults to False.
         """
         self.flip = flip
-        self.image = pygame.image.load(image)
-        self.image = pygame.transform.scale(self.image, (100, 100))
-        if flip:
-            self.image = pygame.transform.flip(self.image, True, False)
+        try:
+            self.image = pygame.image.load(image)
+            self.image = pygame.transform.scale(self.image, (100, 100))
+            if flip:
+                self.image = pygame.transform.flip(self.image, True, False)
+        except FileNotFoundError:
+            print(f"Unable to load image at {image}.")
+            # set a default image that is a neon pink square
+            self.image = pygame.Surface((100, 100))
+            self.image.fill((255, 0, 255))
+            # fill with 'error' text
+            font = pygame.font.Font(None, 25)
+            text = font.render('Error', True, (0, 0, 0))
+            self.image.blit(text, (50, 50))
+            
         self.duration = duration
 
     @property
@@ -208,6 +219,9 @@ class hit_box(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = cords
         self.colliding = False
+        
+    def isColliding(self, value):
+        self.colliding = value    
 
 
 class Player(PlayerInterface):
@@ -248,7 +262,8 @@ class Player(PlayerInterface):
         self.side_w_a = json.load(open('side_walk.json'))
         self.back_w_a = json.load(open('back_walk.json'))
         self.idle_w_a = json.load(open('idle_walk.json'))
-
+        # append a bad path to the idle animation to test the error handling
+        # self.idle_w_a.append(('bad_path.png', 10))
         self.front_walk = Animation(self.front_w_a)
         self.b_walk = Animation(self.back_w_a)
         self.right_walk = Animation(self.side_w_a)
@@ -256,6 +271,8 @@ class Player(PlayerInterface):
         self.left_walk = Animation(self.side_w_a, flip=True)
         # idle animation is the same for all directions currently
         self.idle_walk = Animation(self.idle_w_a)
+        self.idle_walk_r = Animation(self.idle_w_a, flip=True)
+        self.current_idle = self.idle_walk
         # imaginary box for collision detection
         self.empty_sprite = hit_box((self.x, self.y), (50, 25))
 
@@ -312,7 +329,7 @@ class Player(PlayerInterface):
     def idle(self):
         # when the player is not inputting any movement keys
         # set the player's image to the default image.
-        self.image = self.idle_walk.get_frame()
+        self.image = self.current_idle.get_frame()
 
     def y_axis_movement(self):
         if self.moving_up:
@@ -330,11 +347,13 @@ class Player(PlayerInterface):
             # image faces left by default
             self.image = self.left_walk.get_frame()
             self.x -= self.speed
+            self.current_idle = self.idle_walk
 
         elif self.moving_right:
             # flip the image to face right
             self.image = self.right_walk.get_frame()
             self.x += self.speed
+            self.current_idle = self.idle_walk_r
 
     def player_collision(self, coli_group, x_mod: int = 0, y_mod: int = 0, r_depth: int = 0):
         if self.colliding and not self.no_clip:
@@ -350,8 +369,8 @@ class Player(PlayerInterface):
         updates Player.h_rect, DOES NOT UPDATE 'Player.rect'\n'''
         self.empty_sprite.rect.x = self.x
         self.empty_sprite.rect.y = self.y
-        self.empty_sprite.rect.width = self.rect.width/2
-        self.empty_sprite.rect.height = self.rect.height/4
+        self.empty_sprite.rect.width = self.rect.width*0.5
+        self.empty_sprite.rect.height = self.rect.height*0.25
         self.empty_sprite.rect.midbottom = self.rect.midbottom
         # Update rect object from self.x and self.y.
         self.dot.rect.center = self.rect.center
@@ -504,7 +523,9 @@ class Enemy(pygame.sprite.Sprite):
         self.collider_pos = (0, 0)
         self.path_line = (0, 0, 0, 0, self.screen)
     # alias for self.empty_sprite.colliding
-
+    def getRect(self):
+        return self.rect
+    
     @property
     def colliding(self):
         return self.empty_sprite.colliding
@@ -513,11 +534,10 @@ class Enemy(pygame.sprite.Sprite):
     def colliding(self, value):
         self.empty_sprite.colliding = value
 
-    def update(self, enemy_events, debug=False, colliding=False):
+    def update(self, enemy_events, debug=False):
         self.show_debug = debug
         self.flush_match[self.show_debug]()
         self.enemy_movement(enemy_events)
-        self.colliding = colliding
 
         self.pos_update()
         self.hit_box_update()
@@ -527,7 +547,7 @@ class Enemy(pygame.sprite.Sprite):
         '''return the distance from the player\n
         distance = sqrt((x2-x1)^2 + (y2-y1)^2)'''
         x, y = self.agro_circle.rect.center
-        return ((p_x - x)**2 + (p_y - y)**2)**0.5
+        return math.sqrt((p_x - x)**2 + (p_y - y)**2)
 
     def enemy_movement(self, enemy_events):
         # move the enemy towards the player if the player is within 200 pixels
@@ -560,6 +580,7 @@ class Enemy(pygame.sprite.Sprite):
         else:
             self.x, self.y = self.stable_ground
             self.e_pathing.frame_count += 1000000
+            self.colliding = False
         self.frame_count += 1
 
     def check_agro(self, enemy):
@@ -630,7 +651,7 @@ class Enemy(pygame.sprite.Sprite):
         '''update rect used for collision detection\n
         updates Player.h_rect, DOES NOT UPDATE 'Enemy.rect'\n'''
         self.empty_sprite.rect = self.empty_sprite.rect
-        self.empty_sprite.rect.x = self.x + self.rect.width/4
+        self.empty_sprite.rect.x = self.x + self.rect.width*0.25
         self.empty_sprite.rect.y = self.y + self.rect.height*0.7
 
         # Update rect object from self.x and self.y.
