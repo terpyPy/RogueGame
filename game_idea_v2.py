@@ -40,7 +40,7 @@ class MyGame:
         self.player = Player(self.screen)
         # setup test enemies for the player to interact with
         # create a list of starting positions with hight and width as max bounds
-        cords = list(zip(range(100, 1920, 700), range(100, 1080, 700)))
+        cords = list(zip(range(100, 1920, 400), range(100, 1080, 400)))
 
         enemies = [Enemy(self.screen, cords[i]) for i in range(len(cords))]
 
@@ -195,8 +195,8 @@ class MyGame:
             self.found_obj_info += f'\nno clip: {self.player.no_clip}'
 
     def add_debug_groups(self):
-        # self.debug_group.add(self.hit_box_group.sprites())
-        # self.debug_group.add([n.agro_circle for n in self.enemy_group.sprites()])
+        self.debug_group.add(self.hit_box_group.sprites())
+        self.debug_group.add([n.agro_circle for n in self.enemy_group.sprites()])
         self.debug_group.add(self.player.empty_sprite)
         self.debug_group.add(self.player.dot)
         
