@@ -221,6 +221,7 @@ class Input_txt(ScopedMenu):
         self.draw_panels(screen, panels=self.starting_elements)
         self.draw_all_elements(screen, self.starting_elements)
 
+
     def draw_panels(self, screen, panels=[]):
         '''
         draws a panel around each element in the panels list. \n
@@ -426,7 +427,7 @@ class Input_txt(ScopedMenu):
                 # without this the program will hang because the input box shares a screen object with main window.
                 self.destroy = True
             self.handle_event(event)
-        self.blitme(screen)
+        # self.blitme(screen)
         if self.destroy:
             print('destroyed')
             return self.exit_value()

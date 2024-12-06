@@ -1,0 +1,1 @@
+["base_Element.Panel((120, 120, 120), 225, 125, 0, 0)", "base_Element.Trim((50, 50, 50), 168, 93, 28, 13)", "text_element.TextElement(\"confirm to exit\", (0, 0, 255), None, 20, 125, 50, 50, 20, (0, 0, 0))", "text_element.InteractiveTextElement(\"confirm\", (120, 100, 100), None, 18, 83, 25, 70, 70, (0, 0, 0))"]

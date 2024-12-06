@@ -1,0 +1,1 @@
+["base_Element.Panel((120, 120, 120), 200, 100, 401, 319)", "text_element.TextElement(\"Confirm menu test\", (0, 0, 255), None, 20, 125, 50, 439, 319, (0, 0, 0))", "text_element.InteractiveTextElement(\"Yes\", (0, 255, 0), None, 18, 62, 25, 439, 369, (0, 0, 0))", "text_element.InteractiveTextElement(\"No\", (255, 0, 0), None, 18, 62, 25, 501, 369, (0, 0, 0))"]

@@ -2,8 +2,9 @@
 # Date: 03/1/2024
 # Description: this file contains the GameObjects used in the game such as the player and enemies and their animations
 # this is my original code, but the chat feature of copilot was used to help provide examples on how to achieve certain tasks
-
+import pathlib
 import glob
+import numpy as np
 import json
 import math
 import random
@@ -25,8 +26,6 @@ class Keyframe:
         try:
             self.image = pygame.image.load(image)
             self.image = pygame.transform.scale(self.image, (100, 100))
-            if flip:
-                self.image = pygame.transform.flip(self.image, True, False)
         except FileNotFoundError:
             print(f"Unable to load image at {image}.")
             # set a default image that is a neon pink square
@@ -38,9 +37,10 @@ class Keyframe:
             self.image.blit(text, (50, 50))
         except TypeError:
             # assume image is already a surface
-            self.image = image
-            if flip:
-                self.image = pygame.transform.flip(self.image, True, False)
+            self.image = image.copy()
+            
+        if flip:
+            self.image = pygame.transform.flip(self.image, True, False)
             
         self.duration = duration
 
@@ -209,9 +209,29 @@ class PlayerInterface(pygame.sprite.Sprite, WASD):
         pygame.sprite.Sprite.__init__(self)
         WASD.__init__(self)
 
+class txtSprite(pygame.sprite.Sprite):
+    def __init__(self, cords: tuple, text: str, font: pygame.font.Font, color: tuple = (0, 0, 0)) -> None:
+        """create a text sprite\n
+
+        Args:
+            cords (tuple): x, y coordinates
+            text (str): text to display
+            font (pygame.font.Font): font object
+            color (tuple, optional): font color. Defaults to (0, 0, 0).
+        """
+        super().__init__()
+        self.image = font.render(text, True, color)
+        self.rect = self.image.get_rect()
+        self.rect.topleft = cords
+        self.font = font
+        self.color = color
+
+    def update(self, text='',*args, **kwargs):  
+        """update the text displayed by the sprite\n"""
+        self.image = self.font.render(text, False, self.color)
 
 class hit_box(pygame.sprite.Sprite):
-    def __init__(self, cords: tuple, size: tuple):
+    def __init__(self, cords: tuple, size: tuple, parentRect: pygame.Rect = None):
         """create a hit box for collision detection\n
 
         Args:
@@ -224,11 +244,51 @@ class hit_box(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = cords
         self.colliding = False
+        self.parentRect = parentRect
+        # mask for pixel perfect collision detection
+        self.mask = pygame.mask.from_surface(self.image)
         
     def isColliding(self, value):
         self.colliding = value    
 
+    def update(self, *args, **kwargs):
+        self.rect.center = self.parentRect.center
+        adjustY = self.parentRect.midbottom[1] - self.rect.height
+        self.rect.y = adjustY
+        
+class hb_group(pygame.sprite.Group):
+    def __init__(self):
+        super().__init__()
+    
+    def valid_tile_update(self, sub_group):
+        # for e in self.sprites():
+        #     if e in sub_group:
+        #         e.colliding = False
+        #     else:
+        #         e.colliding = True
+            # Extract the colliding status into a NumPy array
+        colliding_status = np.array([e in sub_group for e in self.sprites()])
 
+        # Perform the vectorized operation to update the colliding status
+        colliding_status = ~colliding_status
+
+        # Update the original sprite objects with the new colliding status
+        for e, status in zip(self.sprites(), colliding_status):
+            e.colliding = status
+            
+    def __repr__(self):
+        return f'hit_box_group({self.sprites()})'
+    
+class agro_group(pygame.sprite.Group):
+    def __init__(self):
+        super().__init__()
+        
+    def __repr__(self):
+        return f'agro_group({self.sprites()})'
+    
+    def __str__(self):
+        return f'{self.sprites()}'
+        
 class Player(PlayerInterface):
     def __init__(self, screen):
         # Call the parent inits to inherit from both classes
@@ -261,7 +321,7 @@ class Player(PlayerInterface):
 
         # set the speed of the player
         self.speed = 2.5
-
+        ani_folder = 'ani_configs'
         # setup the walking animations from the json files
         self.front_w_a = json.load(open('front_walk.json'))
         self.side_w_a = json.load(open('side_walk.json'))
@@ -279,7 +339,7 @@ class Player(PlayerInterface):
         self.idle_walk_r = Animation(self.idle_w_a, flip=True)
         self.current_idle = self.idle_walk
         # imaginary box for collision detection
-        self.empty_sprite = hit_box((self.x, self.y), (50, 25))
+        self.collisionSprite = hit_box((self.x, self.y), (50, 25), self.rect)
 
         self.stable_ground = (0, 0)
         self.show_debug = False
@@ -288,11 +348,11 @@ class Player(PlayerInterface):
 
     @property
     def colliding(self):
-        return self.empty_sprite.colliding
+        return self.collisionSprite.colliding
 
     @colliding.setter
     def colliding(self, value):
-        self.empty_sprite.colliding = value
+        self.collisionSprite.colliding = value
 
     def get_dot(self):
         dot = pygame.sprite.Sprite()
@@ -301,20 +361,21 @@ class Player(PlayerInterface):
         dot.rect = pygame.Rect(self.rect.center, (4, 4))
         return dot
 
-    def update(self, coli_group, debug=False):
+    def update(self, debug=False, *args, **kwargs):
         """Update the player's position based on wasd keypress."""
         self.show_debug = debug
-        self.wasd_movement()
         #
         # check for player collision with the test_collision_group
+        self.player_collision()
+        self.wasd_movement()
+        self.pos_update()
         self.hit_box_update()
-        self.player_collision(coli_group)
-
+        
     def wasd_movement(self, debug=False):
         """Update the player's position based on wasd keypress."""
         #
-        # check directions, if not moving the sum of the keys values will be 0
-        if sum(self.wasd_keys.values()) == 0:
+        # check directions, 'not any' is the same as 'all are False'
+        if not any(self.wasd_keys.values()):
             self.idle()
         else:
             # check for key presses modifying up&down
@@ -322,7 +383,7 @@ class Player(PlayerInterface):
             # same for left&right
             self.x_axis_movement()
             # update the player's rect: pushes x,y -> rect.x, rect.y
-            self.pos_update()
+            
 
     def pos_update(self):
         '''update the player's position based on changes to x and y.\n
@@ -353,30 +414,30 @@ class Player(PlayerInterface):
             self.image = self.left_walk.get_frame()
             self.x -= self.speed
             self.current_idle = self.idle_walk
-
+    
         elif self.moving_right:
             # flip the image to face right
             self.image = self.right_walk.get_frame()
             self.x += self.speed
             self.current_idle = self.idle_walk_r
 
-    def player_collision(self, coli_group, x_mod: int = 0, y_mod: int = 0, r_depth: int = 0):
-        if self.colliding and not self.no_clip:
-            #
-            # go back to the last stable ground
-            self.x, self.y = self.stable_ground
-            print(f'stable ground chosen at {self.stable_ground}')
-
-        self.stable_ground = (self.x, self.y)
+    def player_collision(self):
+        if not self.no_clip:
+            # check for collision with the test_collision_group
+            if not self.colliding:
+                #
+                # go back to the last stable ground
+                self.stable_ground = self.x, self.y
+            else:    
+                print(f'stable ground chosen at {self.stable_ground}')
+                self.x, self.y = self.stable_ground
+                self.colliding = False
 
     def hit_box_update(self):
         '''update rect used for collision detection\n
         updates Player.h_rect, DOES NOT UPDATE 'Player.rect'\n'''
-        self.empty_sprite.rect.x = self.x
-        self.empty_sprite.rect.y = self.y
-        self.empty_sprite.rect.width = self.rect.width*0.5
-        self.empty_sprite.rect.height = self.rect.height*0.25
-        self.empty_sprite.rect.midbottom = self.rect.midbottom
+        
+        self.collisionSprite.parentRect = self.rect
         # Update rect object from self.x and self.y.
         self.dot.rect.center = self.rect.center
 
@@ -399,55 +460,7 @@ class Player(PlayerInterface):
     def __str__(self):
         return f'Frames(front:{self.front_walk} |back:{self.b_walk} |right:{self.right_walk} |left:{self.left_walk})'
 
-
-# we want enemies that create a patrol route on init
-# this generator should yield next such that when the last element is reached we reverse the list and continue to yield next.
-# it should yield "left" "right" "up" "down" for the duration of the time given in the constructor
-class Patrol:
-    """
-    A class representing a patrol that moves along a predefined route.
-
-    Attributes:
-    - time (int): The total number of times the patrol will move along the route.
-    - route (list): The list of locations representing the patrol's route.
-    - index (int): The current index of the patrol's position in the route.
-    - direction (int): The direction of movement (-1 for reverse, 1 for forward).
-
-    Methods:
-    - __init__(time: int, route: list): Initializes the Patrol object with the given time and route.
-    - __iter__(): Returns the iterator object for the Patrol.
-    - __next__(): Returns the next location in the patrol's route.
-    """
-
-    def __init__(self, time: int, route: list):
-        self.times = time
-        self.T = time
-        self.route = route
-        self.index = 0
-        self.direction = 1
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        # if the time is up, reset the time and determine the direction
-        if self.times == 0:
-            self.times = self.T
-            # if the index is at the end of the route, reverse the direction
-            if self.index == len(self.route)-1:
-                self.direction = -1
-            # if the index is at the beginning of the route, set the direction to forward
-            if self.index == 0:
-                self.direction = 1
-
-            self.index += self.direction  # index current direction
-        # decrement iteration count for current direction
-        self.times -= 1
-        return self.route[self.index]
-
 # create a cord generator that produces a valid point the enemy can move to for n frames
-
-
 class EnemyPath:
     def __init__(self, n_frames: int, screen_size: tuple, frame_count: int = 0):
         self.game_tics = n_frames
@@ -468,64 +481,9 @@ class EnemyPath:
             self.y = random.randint(0, self.screen_size[1])
             self.frame_count = 0
         return (self.x, self.y)
-    
-class base_weapon(pygame.sprite.Sprite):
-    def __init__(self, screen, cords: tuple = (0, 0)):
-        super().__init__()
-        self.screen = screen
-        self.screen_rect = screen.get_rect()
-        self.image = pygame.image.load('imgs\\enemy\\scaled_dagger.png')
-        # self.image = pygame.transform.scale(self.image, (50, 50))
-        self.rect = self.image.get_rect()
-        if cords != (0, 0):
-            self.rect.x, self.rect.y = cords
-        else:
-            self.rect.midbottom = self.screen_rect.midbottom
-
-class base_helmet(pygame.sprite.Sprite):
-    def __init__(self, screen, cords: tuple = (0, 0)):
-        super().__init__()
-        self.screen = screen
-        self.screen_rect = screen.get_rect()
-        self.image = pygame.image.load('imgs\\enemy\\e_helm.png')
-        # self.image = pygame.transform.scale(self.image, (50, 50))
-        self.rect = self.image.get_rect()
-        if cords != (0, 0):
-            self.rect.x, self.rect.y = cords
-        else:
-            self.rect.midbottom = self.screen_rect.midbottom
-            
-class base_shield(pygame.sprite.Sprite):
-    def __init__(self, screen, cords: tuple = (0, 0)):
-        super().__init__()
-        self.screen = screen
-        self.screen_rect = screen.get_rect()
-        self.image = pygame.image.load('imgs\\enemy\\e_shield.png')
-        # self.image = pygame.transform.scale(self.image, (50, 50))
-        self.rect = self.image.get_rect()
-        if cords != (0, 0):
-            self.rect.x, self.rect.y = cords
-        else:
-            self.rect.midbottom = self.screen_rect.midbottom
-
-class equip_group(pygame.sprite.Group):
-    def __init__(self, screen, xy: tuple = (1,1)):
-        super().__init__()
-        self.screen = screen
-        self.screen_rect = screen.get_rect()
-        self.weapon = base_weapon(screen, cords=xy)
-        self.helmet = base_helmet(screen, cords=xy)
-        self.shield = base_shield(screen, cords=xy)
-        self.add(self.weapon, self.helmet, self.shield)
-        
-    def blit_to_target(self, target):
-        for item in self:
-            target.blit(item.image, item.rect)
-            
-import pygame
-
+             
 class AniRig(pygame.sprite.Group):
-    def __init__(self, screen, offSet: tuple = (1, 1), imgPaths: list = [], surfSize: tuple = (100, 100), cords: tuple = (0, 0)):
+    def __init__(self, screen, offSet=[[1,1]], imgPaths: list = [], surfSize: tuple = (100, 100), cords: tuple = (0, 0)):
         """
         Create a sprite rig for animations, made up of multiple component sprites like head, body, legs, etc.
         Args:
@@ -556,11 +514,12 @@ class AniRig(pygame.sprite.Group):
             dict: Dictionary with image names as keys and surfaces as values.
         """
         images = {}
+        offSetcopy = self.offSet.copy()
         for img in imgPaths:
             try:
                 image = pygame.image.load(img)
                 img_name = img.split('\\')[-1].split('.')[0]
-                images[img_name] = image
+                images[img_name] = image, offSetcopy.pop(0)
             except pygame.error as e:
                 print(f"Failed to load image {img}: {e}")
         return images
@@ -569,11 +528,13 @@ class AniRig(pygame.sprite.Group):
         """
         Create sprites from the loaded images and add them to the group.
         """
-        for attr, image in self.images.items():
+        
+        for attr, img_w_offset in self.images.items():
+            img, offset = img_w_offset
             sprite = pygame.sprite.Sprite()
-            sprite.image = image
-            sprite.clean_image = image.copy()
-            sprite.rect = image.get_rect(topleft=self.offSet)
+            sprite.image = img.copy()
+            sprite.rect = img.get_rect(topleft=offset)
+            sprite.clean_image = img.copy()
             setattr(self, attr, sprite)
             self.add(sprite)
 
@@ -597,13 +558,13 @@ class AniRig(pygame.sprite.Group):
         """
         if hasattr(self, component_name):
             sprite = getattr(self, component_name)
-            original_image = self.images[component_name]
+            original_image = self.images[component_name][0]
             rotated_image = pygame.transform.rotate(original_image, angle)
             sprite.image = rotated_image
             sprite.rect = rotated_image.get_rect(center=sprite.rect.center)
         else:
             print(f"Component '{component_name}' does not exist in the rig.")
-        
+            
     def pivot_component(self, component_name, pivot_point, angle):
         """
         Rotate a target component sprite around a pivot point.
@@ -614,7 +575,7 @@ class AniRig(pygame.sprite.Group):
         """
         if hasattr(self, component_name):
             sprite = getattr(self, component_name)
-            original_image = self.images[component_name]
+            original_image = self.images[component_name][0]
             
             # Calculate the offset from the pivot point to the sprite's center
             pivot_x, pivot_y = pivot_point
@@ -636,11 +597,15 @@ class AniRig(pygame.sprite.Group):
             rotated_image = pygame.transform.rotate(original_image, angle)
             sprite.image = rotated_image
             sprite.rect = rotated_image.get_rect(center=sprite.rect.center)
+            
+         
         else:
             print(f"Component '{component_name}' does not exist in the rig.")
             
     def move_component(self, component_name, offset):
         """
+        32,
+        32,39
         Move a target component sprite by the given offset.
         Args:
             component_name (str): The name of the component sprite to move.
@@ -653,6 +618,30 @@ class AniRig(pygame.sprite.Group):
         else:
             print(f"Component '{component_name}' does not exist in the rig.")
             
+    def flip_component_vertically(self, component_name):
+        """
+        Flip a target component sprite vertically.
+        Args:
+            component_name (str): The name of the component sprite to flip.
+        """
+        if hasattr(self, component_name):
+            sprite = getattr(self, component_name)
+            sprite.image = pygame.transform.flip(sprite.image, False, True)
+        else:
+            print(f"Component '{component_name}' does not exist in the rig.")
+            
+    def flip_component_horizontally(self, component_name):
+        """
+        Flip a target component sprite horizontally.
+        Args:
+            component_name (str): The name of the component sprite to flip.
+        """
+        if hasattr(self, component_name):
+            sprite = getattr(self, component_name)
+            sprite.image = pygame.transform.flip(sprite.image, True, False)
+        else:
+            print(f"Component '{component_name}' does not exist in the rig.")
+            
     def reset_component(self, component_name):
         """
         Reset a target component sprite to its original image and position.
@@ -662,26 +651,45 @@ class AniRig(pygame.sprite.Group):
         if hasattr(self, component_name):
             sprite = getattr(self, component_name)
             sprite.image = sprite.clean_image
-            sprite.rect = sprite.image.get_rect(topleft=self.offSet)
+            sprite.rect = sprite.image.get_rect(topleft=self.images[component_name][1])
         else:
             print(f"Component '{component_name}' does not exist in the rig.")
     
     def __repr__(self):
         return f'AniRig({self.images})'        
-    
-# enemy base class
-class Enemy(pygame.sprite.Sprite):
-    def __init__(self, screen, cords: tuple = (0, 0)):
+
+class NpcVision(pygame.sprite.Sprite):
+    def __init__(self, parentRect: tuple, radius: int, screen: pygame.Surface):
         super().__init__()
         self.screen = screen
-        self.screen_rect = screen.get_rect()
-        pathDir = 'imgs\\enemy\\'
-        fNames = ['head.png', 'body.png', 'leg_l.png', 'leg_r.png', 'arm_l.png', 'arm_r.png']
-        imgPaths = [pathDir + f for f in fNames]
-        self.rig = AniRig(screen, imgPaths=imgPaths, cords=cords)
+        self.image = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
+        self.transparentColor = (255, 255, 255, 15)
+        self.size = (radius, radius)
+        self.rect = pygame.draw.circle(self.image, self.transparentColor, self.size, radius)
+        self.radius = radius
+        self.parentRect = parentRect
+        self.rect.center = parentRect.center
+        self.image.fill((0,0,0,0))
+        pygame.draw.circle(self.image,
+                           self.transparentColor,
+                           self.size,
+                           self.radius)
+    
+    def refresh(self):
+        self.image.fill((0,0,0,0))
+        pygame.draw.circle(self.image, self.transparentColor, self.size, self.radius)
         
-        self.clean_image = self.rig.image.copy()
-        self.rect = self.rig.image.get_rect()
+    def update(self, *args, **kwargs):
+        self.rect.center = self.parentRect.center
+        
+# enemy base class
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, screen, animation, img, cords: tuple = (0, 0)):
+        super().__init__()
+        self.flipped = 'right'
+        self.screen = screen
+        self.screen_rect = screen.get_rect()
+        self.rect = img.get_rect()
         if cords != (0, 0):
             self.rect.x, self.rect.y = cords
         else:
@@ -690,37 +698,28 @@ class Enemy(pygame.sprite.Sprite):
         self.rect.x, self.rect.y = self.rect.x-100, self.rect.y-100
         self.x = self.rect.x
         self.y = self.rect.y
-        self.speed = 2.5
-        self.empty_sprite = hit_box(cords, (50, 25))
+        self.speed = 2.3
+        self.collisionSprite = hit_box(cords, (50, 25), self.rect)
         
-        # give the enemy a weapon using the enemy's rect surface coordinates not the screen coordinates
-        self.enemy_equipment = equip_group(screen)
-        # add the equipment to animation rig, simplifies blitting complex character rigs
-        self.rig.add(self.enemy_equipment)
         # draw the full rig
-        self.rig.draw(self.screen)
+        self.clean_image = img.copy()
+        self.tempImage = img.copy()
+        
         # generate a random int that determines radius of agro circle
         self.agro_range = random.randint(150, 200)
         # make a circle to represent the agro range
-        self.agro_circle = pygame.sprite.Sprite()
-        self.agro_circle.image = pygame.Surface(
-            (self.agro_range*2, self.agro_range*2), pygame.SRCALPHA)
-        # make the circle transparent white for debug purposes
-        self.agro_circle.rect = pygame.draw.circle(self.agro_circle.image,
-                                                   (255, 255, 255, 100),
-                                                   (self.agro_range,
-                                                    self.agro_range),
-                                                   self.agro_range)
-        self.agro_circle.rect.center = self.rect.center
+        self.agro_circle = NpcVision(self.rect, self.agro_range, self.screen)
 
         self.show_debug = False
         self.frame_count = 0
-        self.frame_seed = random.randint(30, 55)
-        self.rand_mod = random.randint(50, 70)
+        self.frame_seed = random.choice(range(0, 60, 10))
+        self.rand_mod = random.choice(range(60, 120, 10))
+            
         self.UID = hash(time.time())
         # pathing sequence for the enemy to follow using a generator to yield the next point
         self.e_pathing = EnemyPath(
-            random.randint(10, 15), self.screen_rect.size)
+            random.randint(20, 40),
+            self.screen_rect.size)
         # store the last stable ground position as a fallback for collision detection
         self.stable_ground = (0, 0)
         # ----------------------------
@@ -731,156 +730,164 @@ class Enemy(pygame.sprite.Sprite):
             (self.agro_range*2, self.agro_range*2), pygame.SRCALPHA)
         self.line.image.fill((0, 0, 0, 0))
         self.line.rect = self.agro_circle.rect
-        self.flush_match = dict(
-            zip((False, True), (lambda: None, self.flush_agro)))
-        self.line_match = dict(
-            zip((False, True), (lambda *x: None, self.add_line)))
+        
         self.collider_pos = (0, 0)
         self.path_line = (0, 0, 0, 0, self.screen)
         # ----------------------------
         # walking animation for the enemy, mimics json file format of keyframe type animations.
         # each function in the list is a keyframe rendered in the order given.
         # allows us to use either animation type interchangeably.
-        rig_ani_test = [[self.leg_r_forward(),1], 
-                        [self.leg_l_back(),1], 
-                        [self.leg_r_back(),1], 
-                        [self.leg_l_forward(),1]]
+        rig_ani_test = animation
         
         self.walking_ani = Animation(rig_ani_test)
-        self.image = self.walking_ani.get_frame()
+        self.walking_ani.set_frame(0)
+        # self.walking_ani.get_frame()
+        self.idle_sprite = self.clean_image.copy()
+        self.idle_sprite_l = pygame.transform.flip(self.clean_image.copy(), True, False)
         self.updateMe = False
         self.saveCount = 0
         self.update([(self.x+2, self.y+2)])
-
+        
     @property
     def colliding(self):
-        return self.empty_sprite.colliding
+        return self.collisionSprite.colliding
 
     @colliding.setter
     def colliding(self, value):
-        self.empty_sprite.colliding = value
-
-    def leg_r_forward(self):
-        self.rig.draw_rig()
-        self.rig.move_component('leg_r', (5, 0))
-        self.rig.pivot_component('leg_r', self.rig.leg_r.rect.midtop, 20)
-        return self.rig.image.copy()
+        self.collisionSprite.colliding = value
         
-    def leg_l_back(self):
-        self.rig.draw_rig()
-        self.rig.move_component('leg_l', (-6, 0))
-        self.rig.pivot_component('leg_l', self.rig.leg_l.rect.midtop, -20)
-        return self.rig.image.copy()
-        
-    def leg_r_back(self):
-        self.rig.draw_rig()
-        self.rig.reset_component('leg_r')
-        return self.rig.image.copy()
-        
-    def leg_l_forward(self):
-        self.rig.draw_rig()
-        self.rig.reset_component('leg_l')
-        return self.rig.image.copy()
-        
-    def update(self, enemy_events, debug=False):
+    @property
+    def image(self):
+        return self.tempImage
+    
+    def update(self, enemy_events=[], debug=False, *args, **kwargs):
         self.show_debug = debug
-        self.flush_match[self.show_debug]()
-        self.enemy_movement(enemy_events)
         
-        if self.updateMe:
-            self.image = self.walking_ani.get_frame()
         
-        self.pos_update()
-        self.hit_box_update()
-        # ground is likely to be stable
+        self.enemyMovement(enemy_events)
+        
+        self.handleAnimationState()
+        
+        self.posUpdate()
 
-    def dist_from_agro(self, p_x, p_y):
+    def handleAnimationState(self):
+        match self.updateMe:
+            case True:
+                image = self.walking_ani.get_frame()
+            case False:
+                # get the current frame of the animation
+                image = self.idle_sprite
+        
+        match self.flipped:
+            case 'left':
+                self.tempImage = pygame.transform.flip(image, True, False)
+            case 'right':
+                self.tempImage = image.copy()
+            case 'idle':
+                self.tempImage = self.idle_sprite
+        
+        
+        # reset the update flag for the next frame
+        self.updateMe = False
+
+    def dist_from_me(self, p_x, p_y):
         '''return the distance from the player\n
         distance = sqrt((x2-x1)^2 + (y2-y1)^2)'''
         x, y = self.agro_circle.rect.center
         return math.sqrt((p_x - x)**2 + (p_y - y)**2)
 
-    def enemy_movement(self, enemy_events):
-        # move the enemy towards the player if the player is within 200 pixels
-        has_target = False
-        my_roaming_window = self.frame_count % self.rand_mod > self.frame_seed
-        on_screen = self.screen_rect.collidepoint(self.agro_circle.rect.center)
+    def enemyMovement(self, enemy_events):
+        # move the enemy towards the player if the player is within range
+        has_target = 0
+        on_screen = True if self.screen_rect.contains(self.rect) else False
         
         if not self.colliding and on_screen:
             self.stable_ground = (self.x, self.y)
+            my_roaming_window = self.e_pathing.frame_count % self.rand_mod > self.frame_seed
+            has_target = self.checkAggroStatus(*enemy_events)
             
-                
-            
-            has_target = self.check_agro(*enemy_events)
-
-            if my_roaming_window and not has_target:
-                # walk animation
-                # self.walking_ani[self.walk_f_pointer]()
-                self.updateMe = True
+            # flag the enemy to update sprite
+            if my_roaming_window and has_target == 0:
                 # move the enemy towards the next position in the pathing sequence
                 head_towards = next(self.e_pathing)
-                # scene_x, scene_y = self.screen_rect.size
                 e_x, e_y = self.rect.center
-                # scaled_pos = self.calc_line(*head_towards, 0, 0, e_x, e_y)
-                # self.line_match[self.show_debug](*scaled_pos)
-                dist = math.sqrt(
-                    (e_x - head_towards[0])**2 + (e_y - head_towards[1])**2)
-                if dist > 1:
-                    s1, s2 = self.get_scaled_speed(
+                dist = self.dist_from_me(*head_towards)
+                
+                if abs(dist) >= 2:
+                    s1, s2 = self.getScaledSpeed(
                         dist, e_x, e_y, *head_towards)
-                    self.x += s1
-                    self.y += s2
+                    self.adjustRefPos(s1, s2)
+                    self.toggleFlippedFlag(s1,s2)
                     # draw a dot at the target position
                     self.path_line = (*head_towards, e_x, e_y, self.screen)
-                self.e_pathing.frame_count += 1
-            
-            elif not has_target and not my_roaming_window:
-                self.updateMe = False
-
+                
+                    
         else:
             self.x, self.y = self.stable_ground
             self.e_pathing.frame_count += 1000000
-            self.colliding = False
-        self.frame_count += 1
+            # self.colliding = False
+        self.e_pathing.frame_count += 1
 
-    def check_agro(self, enemy):
+    def adjustRefPos(self, s1, s2):
+        self.x += s1
+        self.y += s2
+        self.updateMe = True
+
+    def toggleFlippedFlag(self, s1, s2):
+        if s1 > 0:
+            self.flipped = 'right'
+        elif s1 < 0:
+            self.flipped = 'left'
+        else:
+            self.flipped = 'idle'
+  
+    def checkAggroStatus(self, enemy):
 
         p_x, p_y = enemy
-        dist = self.dist_from_agro(p_x, p_y)
+        dist = self.dist_from_me(p_x, p_y)
         abs_dist = abs(dist)
-        if abs_dist <= self.agro_range and abs_dist > 20:
-            # draw a line from the enemy to the player on agro circle
-            s_x, s_y = self.agro_circle.rect.x, self.agro_circle.rect.y
-            e_x, e_y = self.rect.center
-            scaled_pos = self.calc_line(p_x, p_y, s_x, s_y, e_x, e_y)
-            self.line_match[self.show_debug](
-                *scaled_pos, self.agro_circle.image)
+        min_dist = 50
+        inRange = abs_dist <= self.agro_range
+        notReachedTarget = not abs_dist <= min_dist
+        
+        match inRange, notReachedTarget:
+            case True, True:
+                self.trackTarget(p_x, p_y, dist)
+                return 1
+            case True, False:
+                return 2
+            case False, _:
+                return 0
+
+    def trackTarget(self, p_x, p_y, dist):
+        s_x, s_y = self.agro_circle.rect.x, self.agro_circle.rect.y
+        e_x, e_y = self.rect.center
+        scaled_pos = self.calculateDistanceVector(p_x, p_y, s_x, s_y, e_x, e_y)
+            # set info to draw line from the enemy to the player on agro circle
+        self.path_line = (p_x, p_y, e_x, e_y, self.screen)
             # we want this bound within the screen
             # scaled_pos contains our coordinates and targets relative to the agro circle
             # we just want to move the enemy towards the player relative coordinates as its the end point
-            e_x, e_y, t_x, t_y = scaled_pos
+        e_x, e_y, t_x, t_y = scaled_pos
             # move the enemy towards the player relative coordinates and speed
-            s1, s2 = self.get_scaled_speed(dist, e_x, e_y, t_x, t_y)
-            # print(s1, s2)
-            self.x += s1
-            self.y += s2
-            # self.walking_ani[self.walk_f_pointer]()
-            self.updateMe = True
-            return True
-
-    def get_scaled_speed(self, dist, e_x, e_y, t_x, t_y):
+        s1, s2 = self.getScaledSpeed(dist, e_x, e_y, t_x, t_y)
+            # push the reference position to our new speed adjusted position
+        self.adjustRefPos(s1, s2) # also sets the update flag because we are moving
+        self.toggleFlippedFlag(s1,s2)
+        
+    def getScaledSpeed(self, dist, e_x, e_y, t_x, t_y):
         def f_of_x(x1, x2): return (x1 - x2) / dist * self.speed
         def f_of_xy(x, y): return (f_of_x(*x), f_of_x(*y))
         s1, s2 = f_of_xy((t_x, e_x), (t_y, e_y))
         return s1, s2
 
-    def add_line(self, e_x_mod, e_y_mod, t_x_mod, t_y_mod, surf_name=''):
-        # convert our position to the agro circle's coordinate system
+    def drawPathing(self, e_x_mod, e_y_mod, t_x_mod, t_y_mod, surf_name=''):
+        # draw a line from the enemy to our target position
         target_surf = surf_name
         pygame.draw.line(target_surf, (0, 255, 0),
-                         (e_x_mod, e_y_mod), (t_x_mod, t_y_mod), 2)
+                            (e_x_mod, e_y_mod), (t_x_mod, t_y_mod), 2)
 
-    def calc_line(self, t_x, t_y, surf_x, surf_y, e_x, e_y):
+    def calculateDistanceVector(self, t_x, t_y, surf_x, surf_y, e_x, e_y):
         """scale the position to the surface's coordinate system\n
         surf_x, surf_y are the x and y coordinates of the surface\n
         x, y are the x and y coordinates of the target\n
@@ -892,34 +899,166 @@ class Enemy(pygame.sprite.Sprite):
         # convert the target's position to the agro circle's coordinate system
         return convert_all(e_x, e_y) + convert_all(t_x, t_y)
 
-    def flush_agro(self):
-        self.agro_circle.image.fill((0, 0, 0, 0))
-        pygame.draw.circle(self.agro_circle.image,
-                           (255, 255, 255, 100),
-                           (self.agro_range, self.agro_range),
-                           self.agro_range)
+    def clearAgro(self):
+        self.agro_circle.refresh()
 
-    def pos_update(self):
+    def posUpdate(self):
         '''update the player's position based on changes to x and y.\n
         Player.x, Player.y -> Player.rect.x, Player.rect.y'''
-        self.rect = self.rig.image.get_rect()
+        self.rect = self.tempImage.get_rect()
+        # Update rect object from self.x and self.y.
         self.rect.x = self.x
         self.rect.y = self.y
         # update the agro circle
-        self.agro_circle.rect.center = self.rect.center
+        self.agro_circle.parentRect = self.rect
+        # update the collision sprite
+        self.collisionSprite.parentRect = self.rect
+        
+        
+class EnemyGroup(pygame.sprite.Group):
+    def __init__(self, screen, cords: tuple = (0, 0), size: int = 10):
+        super().__init__()
+        self.screen = screen
+        self.screen_rect = screen.get_rect()
+        pathDir = 'imgs\\enemy\\'
+        fNames = ['head.png', 'body.png', 'leg_l.png', 'leg_r.png', 'arm_l.png', 'arm_r.png',
+                  'e_shield.png',
+                  'scaled_dagger.png',
+                  'e_helm.png']
+        imgPaths = [pathDir + f for f in fNames]
+        self.rig = AniRig(screen, imgPaths=imgPaths, cords=cords, 
+                          offSet=[[1,1],
+                                  [1,1],
+                                  [47,84],
+                                  [37,84],
+                                  [1,1],
+                                  [1,1],
+                                  [1,1],
+                                  [1,1],
+                                  [1,1]])
+        self.im = self.rig.draw_rig().copy()
+        self.rig_ani_test = [
+                        [self.legLeftMovement(-10), 2],
+                        [self.legLeftMovement(-10), 2],
+                        [self.moveArmsWithEquip(-10), 2],
+                        [self.moveArmsWithEquip(-10), 1],
+                        [self.legRightMovement(10), 2],
+                        [self.legRightMovement(10), 2],
+                        [self.moveArmsWithEquip(-10), 1],
+                        [self.legLeftMovement(-10), 2],
+                        [self.legLeftMovement(-10), 2],
+                        [self.legLeftReset(), 2],
+                        [self.legRightMovement(10), 2], 
+                        [self.resetArmsWithEquip(), 1],
+                        [self.moveArmsWithEquip(10), 1],
+                        [self.legRightMovement(10), 2],
+                        [self.legRightReset(), 2],
+                        [self.moveArmsWithEquip(10), 1],
+                        [self.moveArmsWithEquip(10), 2],
+                        ]
+        self.enemies = [Enemy(screen, self.rig_ani_test.copy(), self.im, cords) for _ in range(size)]
+        self.add(self.enemies)
+        self.show_debug = False
+        # get all the hit boxes for the enemies
+        self.ehb = hb_group()
+        self.ehb.add([enemy.collisionSprite for enemy in self.enemies])
+        self.e_agro = agro_group()
+        self.e_agro.add([enemy.agro_circle for enemy in self.enemies])
+        
+        
+    def spawnEnemy(self, cords: tuple = (0, 0)):
+        self.enemies.append(Enemy(self.screen, self.rig_ani_test, self.im, cords))
+        self.add(self.enemies[-1])
+        self.ehb.add(self.enemies[-1].collisionSprite)
+        self.e_agro.add(self.enemies[-1].agro_circle)
+        return self.enemies[-1]
 
-    def hit_box_update(self):
-        '''update rect used for collision detection\n
-        updates Player.h_rect, DOES NOT UPDATE 'Enemy.rect'\n'''
-        self.empty_sprite.rect = self.empty_sprite.rect
-        self.empty_sprite.rect.x = self.x + self.rect.width*0.25
-        self.empty_sprite.rect.y = self.y + self.rect.height*0.7
+    def toggleDebug(self):
+        self.show_debug = not self.show_debug
+        return self.show_debug
+    
+    def moveArmsWithEquip(self, mod=-20):
+        x, y = self.rig.arm_r.rect.center
+        dx, dy = self.rig.scaled_dagger.rect.center
+        self.rig.pivot_component('arm_r', (x,y), mod)
+        self.rig.pivot_component('scaled_dagger', (dx,dy), mod)
+        alx,aly = self.rig.arm_l.rect.center
+        sx, sy = self.rig.e_shield.rect.center
+        self.rig.pivot_component('arm_l', (alx,aly), mod)
+        self.rig.pivot_component('e_shield', (sx,sy), mod)
+        self.rig.draw_rig()
+        return self.rig.image.copy()
+    
+    def resetArmsWithEquip(self):
+        self.rig.reset_component('scaled_dagger')
+        self.rig.reset_component('arm_r')
+        self.rig.reset_component('arm_l')
+        self.rig.reset_component('e_shield')
+        self.rig.draw_rig()
+        return self.rig.image.copy()
+    
+    def legRightMovement(self, mod):
+        x, y = self.rig.leg_r.rect.topright
+        self.rig.move_component('leg_r', (2.5, 0))
+        self.rig.pivot_component('leg_r', (x,y), mod)
+        self.rig.rotate_component('leg_r', mod*2)
+        # redraw the body
+        self.rig.draw_rig()
+        return self.rig.image.copy()
+        
+    def legLeftMovement(self,mod):
+        x, y = self.rig.leg_l.rect.topleft
+        self.rig.move_component('leg_l', (-2.6,0))
+        self.rig.pivot_component('leg_l', (x,y), mod)
+        self.rig.rotate_component('leg_l', mod*2)
+        # redraw the body
+        self.rig.draw_rig()
+        return self.rig.image.copy()
+        
+    def legRightReset(self):
+        self.rig.reset_component('leg_r')
+        self.rig.draw_rig()
+        return self.rig.image.copy()
+        
+    def legLeftReset(self):
+        self.rig.reset_component('leg_l')
+        self.rig.draw_rig()
+        return self.rig.image.copy()
+    
+    def __repr__(self):
+        return f'EnemyGroup({self.enemies})'
 
-        # Update rect object from self.x and self.y.
+    def __str__(self):
+        return f'Enemies({len(self.enemies)})'
         
 if "__main__" == __name__:
     import glob
     im_list = glob.glob('**/*.png', recursive=True)
     print('\n'.join(im_list))
+    # put an enemy on a blank screen
+    screen = pygame.display.set_mode((1920,1080))
+    enemy = EnemyGroup(screen, cords=(100, 100), size=1)
+    agro_group = pygame.sprite.Group()
+    agro_group.add(enemy.enemies[0].agro_circle)
+    player = Player(screen)
+    clock = pygame.time.Clock()
+    # basic game loop
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                player.k_up_e(event.key, True)
+            if event.type == pygame.KEYUP:
+                player.k_up_e(event.key, False)
+        screen.fill((0, 0, 0))
+        player.update()
+        enemy.update([player.rect.center], True)
+        agro_group.update()
+        screen.blit(player.image, player.rect)
+        enemy.draw(screen)
+        pygame.display.update()
+        clock.tick(60)
     pygame.init()
     pygame.quit()

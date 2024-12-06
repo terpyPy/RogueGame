@@ -31,7 +31,7 @@ class Txt_confirm(Input_txt):
         n1, n2 = cancel
         button_positions = [(10+y1, self.rect_text.y + y2),
                             (10+n1, self.rect_text.y + n2),]
-
+        self.rects = []
         #
         # create the buttons placing them in a list of dictionaries, each dict contains the button's properties
         self.add_buttons(button_labels, button_positions)
@@ -48,7 +48,7 @@ class Txt_confirm(Input_txt):
             self.buttons.append({'rect': button_rect,
                                  'color': self.passive_color,
                                  'label': button_labels[i]})
-
+            
     def handle_event(self, event):
         # run the inherited handle_event method
         super().handle_event(event)

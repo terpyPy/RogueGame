@@ -1,0 +1,1 @@
+["base_Element.Panel((120, 120, 120), 200, 100, 474, 106)", "input_element.InputElement(\" asdss\", (0, 0, 255), None, 20, 125, 50, 512, 106, (0, 0, 0))", "text_element.InteractiveTextElement(\"Yes\", (0, 255, 0), None, 18, 62, 25, 512, 156, (0, 0, 0))", "text_element.InteractiveTextElement(\"No\", (255, 0, 0), None, 18, 62, 25, 574, 156, (0, 0, 0))"]
