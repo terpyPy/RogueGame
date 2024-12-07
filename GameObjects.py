@@ -321,12 +321,21 @@ class Player(PlayerInterface):
 
         # set the speed of the player
         self.speed = 2.5
-        ani_folder = 'ani_configs'
+        ani_folder = pathlib.WindowsPath('ani_configs')
         # setup the walking animations from the json files
-        self.front_w_a = json.load(open('front_walk.json'))
-        self.side_w_a = json.load(open('side_walk.json'))
-        self.back_w_a = json.load(open('back_walk.json'))
-        self.idle_w_a = json.load(open('idle_walk.json'))
+        f = open(ani_folder / 'front_walk.json')
+        self.front_w_a = json.load(f)
+        f.close()
+        f = open(ani_folder / 'side_walk.json')
+        self.side_w_a = json.load(f)
+        f.close()
+        f = open(ani_folder / 'back_walk.json')
+        self.back_w_a = json.load(f)
+        f.close()
+        f = open(ani_folder / 'idle_walk.json')
+        self.idle_w_a = json.load(f)
+        f.close()
+        
         # append a bad path to the idle animation to test the error handling
         # self.idle_w_a.append(('bad_path.png', 10))
         self.front_walk = Animation(self.front_w_a)
@@ -518,7 +527,7 @@ class AniRig(pygame.sprite.Group):
         for img in imgPaths:
             try:
                 image = pygame.image.load(img)
-                img_name = img.split('\\')[-1].split('.')[0]
+                img_name = img.name.split('.')[0]
                 images[img_name] = image, offSetcopy.pop(0)
             except pygame.error as e:
                 print(f"Failed to load image {img}: {e}")
@@ -920,12 +929,13 @@ class EnemyGroup(pygame.sprite.Group):
         super().__init__()
         self.screen = screen
         self.screen_rect = screen.get_rect()
-        pathDir = 'imgs\\enemy\\'
+        pathDir = pathlib.WindowsPath('imgs\enemy')
+        
         fNames = ['head.png', 'body.png', 'leg_l.png', 'leg_r.png', 'arm_l.png', 'arm_r.png',
                   'e_shield.png',
                   'scaled_dagger.png',
                   'e_helm.png']
-        imgPaths = [pathDir + f for f in fNames]
+        imgPaths = [pathDir / f for f in fNames]
         self.rig = AniRig(screen, imgPaths=imgPaths, cords=cords, 
                           offSet=[[1,1],
                                   [1,1],

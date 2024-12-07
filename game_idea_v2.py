@@ -8,6 +8,7 @@
 # 
 # Import standard modules.
 import sys
+import pathlib
 import numpy as np
 import json
 # Import non-standard modules.
@@ -40,10 +41,11 @@ class MyGame:
         self.width, self.height = self.screen.get_rect().size
         self.screen_rect = self.screen.get_rect()
         # scene setup
-        pathDir = 'imgs\\scene\\'
+        pathDir = pathlib.WindowsPath('imgs/scene/')
         fNames = ['dark_tile.png', 'light_tile.png','house_t.png']
-        imgPaths = [pathDir + f for f in fNames]
-        self.background = Background(self.screen,imgPaths=imgPaths,
+        imgPaths = [pathDir / f for f in fNames]
+        self.background = Background(self.screen,
+                                imgPaths=imgPaths,
                                 surfSize=self.screen.get_rect().size,
                                 offSet=[[0, 0], [0, 0], [0, 0]])
         tileRange = [0, 1, 10, 11, 21,31,32,33,43,53,54,64,65,66,67,68] 
@@ -74,7 +76,9 @@ class MyGame:
             menu_result, False, (255, 255, 255))
         # test collision has an x and y coordinate for each segment of test_collision
         # make a sprite group for the test collision so we can use pygame's collision detection
-        self.test_collision = json.load(open('mouse_positions_m.json'))
+        f = open('mouse_positions_m.json')
+        self.test_collision = json.load(f)
+        f.close()
         self.m_record = MP(self.test_collision)
         self.test_collision_group = pygame.sprite.Group()
         for dot in self.test_collision:
